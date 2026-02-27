@@ -1,8 +1,8 @@
 /**
  * Playbook Panel Component
  *
- * Displays meeting methodology progress:
- * - MEDDIC/Challenger checklist
+ * Displays meeting template progress:
+ * - Agenda item checklist
  * - Coverage status per item
  * - Suggested questions
  * - Evidence links

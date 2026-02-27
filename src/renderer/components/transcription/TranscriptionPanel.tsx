@@ -2,10 +2,10 @@
  * Transcription Panel Component
  *
  * Modern chat-like interface for live transcription:
- * - Avatar indicators (Me/Customer)
+ * - Avatar indicators (Me/Them)
  * - Timestamp badges
  * - Styled message bubbles
- * - Objection detection highlighting
+ * - Trigger detection highlighting
  * - Auto-scroll to latest
  * - Bookmarking support
  */
@@ -72,7 +72,7 @@ function TranscriptMessage({ item, isLive, onBookmark }: TranscriptMessageProps)
                 isMe ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400'
               )}
             >
-              {isMe ? 'You' : 'Customer'}
+              {isMe ? 'You' : 'Them'}
             </span>
             <span className="text-xs text-slate-400">{formatTime(item.timestamp)}</span>
             {isLive && (

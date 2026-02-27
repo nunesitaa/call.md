@@ -1,10 +1,10 @@
 /**
- * Call Summary View Component
+ * Meeting Summary View Component
  *
- * Displays post-call AI-generated summary with:
+ * Displays post-meeting AI-generated summary with:
  * - Summary bullets
- * - Customer pain points and goals
- * - Objections and responses
+ * - Challenges and objectives identified
+ * - Concerns raised and responses
  * - Commitments
  * - Next steps / action items
  * - Risk flags
@@ -93,14 +93,14 @@ function BulletList({ items, icon }: { items: string[]; icon?: React.ReactNode }
   );
 }
 
-function ObjectionsList({ objections }: { objections: CopilotCallSummary['objections'] }) {
-  if (!objections || objections.length === 0) {
-    return <p className="text-sm text-muted-foreground italic">No objections raised</p>;
+function ConcernsList({ concerns }: { concerns: CopilotCallSummary['objections'] }) {
+  if (!concerns || concerns.length === 0) {
+    return <p className="text-sm text-muted-foreground italic">No concerns raised</p>;
   }
 
   return (
     <div className="space-y-2">
-      {objections.map((obj, i) => (
+      {concerns.map((obj, i) => (
         <div key={i} className="p-2 bg-muted/50 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
             <Badge variant="outline" className="text-xs capitalize">
@@ -138,7 +138,7 @@ function CommitmentsList({ commitments }: { commitments: CopilotCallSummary['com
       {commitments.map((com, i) => (
         <div key={i} className="flex items-start gap-2 p-2 bg-muted/50 rounded-lg">
           <Badge variant={com.who === 'me' ? 'default' : 'secondary'} className="text-xs shrink-0">
-            {com.who === 'me' ? 'You' : 'Customer'}
+            {com.who === 'me' ? 'You' : 'Them'}
           </Badge>
           <p className="text-sm">{com.commitment}</p>
         </div>
@@ -172,7 +172,7 @@ function NextStepsList({ nextSteps }: { nextSteps: CopilotCallSummary['nextSteps
             <p className="text-sm">{step.action}</p>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className="text-xs">
-                {step.owner === 'me' ? 'You' : step.owner === 'them' ? 'Customer' : 'Both'}
+                {step.owner === 'me' ? 'You' : step.owner === 'them' ? 'Them' : 'Both'}
               </Badge>
               <Badge className={cn("text-xs", getPriorityColor(step.priority))}>
                 {step.priority}
@@ -213,7 +213,7 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Call Summary
+            Meeting Summary
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -233,12 +233,12 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
 
   const copyToClipboard = () => {
     const text = [
-      '# Call Summary',
+      '# Meeting Summary',
       '',
       '## Key Points',
       ...summary.bullets.map(b => `- ${b}`),
       '',
-      '## Customer Pain Points',
+      '## Challenges Discussed',
       ...summary.customerPain.map(p => `- ${p}`),
       '',
       '## Next Steps',
@@ -250,7 +250,7 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const unresolvedObjections = summary.objections?.filter(o => !o.resolved).length || 0;
+  const unresolvedConcerns = summary.objections?.filter(o => !o.resolved).length || 0;
 
   return (
     <Card className={cn("", className)}>
@@ -258,7 +258,7 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Call Summary
+            Meeting Summary
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
@@ -301,9 +301,9 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
               <BulletList items={summary.bullets} />
             </Section>
 
-            {/* Customer Pain & Goals */}
+            {/* Challenges & Objectives */}
             <Section
-              title="Customer Pain Points"
+              title="Challenges Discussed"
               icon={<Target className="h-4 w-4" />}
               count={summary.customerPain?.length}
             >
@@ -312,7 +312,7 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
 
             {summary.customerGoals && summary.customerGoals.length > 0 && (
               <Section
-                title="Customer Goals"
+                title="Objectives Identified"
                 icon={<Lightbulb className="h-4 w-4" />}
                 count={summary.customerGoals.length}
                 defaultOpen={false}
@@ -321,14 +321,14 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
               </Section>
             )}
 
-            {/* Objections */}
+            {/* Concerns */}
             <Section
-              title="Objections"
+              title="Concerns Raised"
               icon={<MessageSquare className="h-4 w-4" />}
               count={summary.objections?.length}
-              badge={unresolvedObjections > 0 ? { text: `${unresolvedObjections} open`, variant: 'destructive' } : undefined}
+              badge={unresolvedConcerns > 0 ? { text: `${unresolvedConcerns} open`, variant: 'destructive' } : undefined}
             >
-              <ObjectionsList objections={summary.objections} />
+              <ConcernsList concerns={summary.objections} />
             </Section>
 
             {/* Commitments */}

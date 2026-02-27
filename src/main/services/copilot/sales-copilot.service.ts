@@ -667,7 +667,7 @@ export class MeetingCopilotService extends EventEmitter {
         recordingId,
         elapsedMs: summaryElapsed,
         bullets: summary.bullets.length,
-        objections: summary.objections.length,
+        concerns: summary.concerns?.length || 0,
         nextSteps: summary.nextSteps.length,
       }, 'Summary generation completed');
     } catch (error) {
@@ -677,10 +677,12 @@ export class MeetingCopilotService extends EventEmitter {
         bullets: [],
         customerPain: [],
         customerGoals: [],
+        concerns: [],
         objections: [],
         commitments: [],
         nextSteps: [],
         keyDecisions: [],
+        openQuestions: [],
         riskFlags: ['Summary generation failed: ' + errMsg],
         generatedAt: Date.now(),
       };

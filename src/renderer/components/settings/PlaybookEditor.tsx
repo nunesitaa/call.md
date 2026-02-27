@@ -1,8 +1,8 @@
 /**
- * Playbook Editor Component
+ * Meeting Template Editor Component
  *
- * Allows users to view, create, edit, and manage playbooks
- * (meeting methodologies like MEDDIC, Challenger, etc.)
+ * Allows users to view, create, edit, and manage meeting templates
+ * (1:1s, Project Reviews, Retrospectives, Discovery calls, etc.)
  */
 
 import React, { useState } from 'react';
@@ -51,9 +51,12 @@ import { trpc } from '../../api/trpc';
 import { cn } from '../../lib/utils';
 
 const PLAYBOOK_TYPES = [
-  { value: 'MEDDIC', label: 'MEDDIC' },
-  { value: 'Challenger', label: 'Challenger' },
-  { value: 'SPIN', label: 'SPIN' },
+  { value: '1on1', label: '1:1 Check-in' },
+  { value: 'ProjectReview', label: 'Project Review' },
+  { value: 'Retrospective', label: 'Retrospective' },
+  { value: 'Discovery', label: 'Discovery / Requirements' },
+  { value: 'Interview', label: 'Interview' },
+  { value: 'Brainstorm', label: 'Brainstorm / Ideation' },
   { value: 'Custom', label: 'Custom' },
 ] as const;
 
@@ -238,7 +241,7 @@ function PlaybookForm({
             id="name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="e.g., Enterprise MEDDIC"
+            placeholder="e.g., Team Weekly 1:1"
             required
           />
         </div>
@@ -372,9 +375,9 @@ export function PlaybookEditor() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Playbooks</h3>
+          <h3 className="text-lg font-medium">Meeting Templates</h3>
           <p className="text-sm text-muted-foreground">
-            Manage meeting methodology checklists (MEDDIC, Challenger, etc.)
+            Manage meeting agendas and checklists for different meeting types
           </p>
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -386,9 +389,9 @@ export function PlaybookEditor() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Playbook</DialogTitle>
+              <DialogTitle>Create Meeting Template</DialogTitle>
               <DialogDescription>
-                Create a new meeting methodology checklist.
+                Create a new meeting agenda template with discussion topics.
               </DialogDescription>
             </DialogHeader>
             <PlaybookForm
@@ -520,7 +523,7 @@ export function PlaybookEditor() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Playbook</DialogTitle>
-            <DialogDescription>Update the meeting methodology playbook.</DialogDescription>
+            <DialogDescription>Update this meeting template.</DialogDescription>
           </DialogHeader>
           {editingPlaybook && (
             <PlaybookForm

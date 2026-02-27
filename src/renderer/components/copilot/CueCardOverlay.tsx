@@ -43,54 +43,66 @@ interface CueCardItemProps {
 function CueCardItem({ cueCard, isPinned, onDismiss, onPin, onFeedback }: CueCardItemProps) {
   const [showFeedback, setShowFeedback] = useState(false);
 
-  const getObjectionGradient = (type: string) => {
+  const getTriggerGradient = (type: string) => {
     switch (type) {
-      case 'pricing':
-        return 'from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30';
-      case 'timing':
-        return 'from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30';
-      case 'competitor':
-        return 'from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30';
-      case 'authority':
+      case 'open_question':
         return 'from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30';
-      case 'security':
+      case 'decision_point':
+        return 'from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30';
+      case 'concern':
+        return 'from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30';
+      case 'risk':
         return 'from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30';
-      case 'integration':
+      case 'commitment':
+        return 'from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30';
+      case 'follow_up':
         return 'from-cyan-50 to-teal-50 dark:from-cyan-950/30 dark:to-teal-950/30';
+      case 'information_request':
+        return 'from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30';
       default:
         return 'from-slate-50 to-gray-50 dark:from-slate-950/30 dark:to-gray-950/30';
     }
   };
 
-  const getObjectionColor = (type: string) => {
+  const getTriggerColor = (type: string) => {
     switch (type) {
-      case 'pricing':
-        return 'bg-green-500 text-white';
-      case 'timing':
-        return 'bg-amber-500 text-white';
-      case 'competitor':
-        return 'bg-purple-500 text-white';
-      case 'authority':
+      case 'open_question':
         return 'bg-blue-500 text-white';
-      case 'security':
+      case 'decision_point':
+        return 'bg-purple-500 text-white';
+      case 'concern':
+        return 'bg-amber-500 text-white';
+      case 'risk':
         return 'bg-red-500 text-white';
-      case 'integration':
+      case 'commitment':
+        return 'bg-green-500 text-white';
+      case 'follow_up':
         return 'bg-cyan-500 text-white';
+      case 'information_request':
+        return 'bg-indigo-500 text-white';
       default:
         return 'bg-slate-500 text-white';
     }
   };
 
+  const formatTriggerLabel = (type: string) => {
+    return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  // Backwards compatibility aliases
+  const getObjectionGradient = getTriggerGradient;
+  const getObjectionColor = getTriggerColor;
+
   return (
     <Card className="overflow-hidden shadow-lg border-2 animate-in slide-in-from-right duration-300">
       {/* Header with gradient */}
       <CardHeader
-        className={cn('border-b p-4 bg-gradient-to-r', getObjectionGradient(cueCard.objectionType))}
+        className={cn('border-b p-4 bg-gradient-to-r', getTriggerGradient(cueCard.objectionType))}
       >
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
-            <Badge className={cn('mb-2 text-xs', getObjectionColor(cueCard.objectionType))}>
-              {cueCard.objectionType}
+            <Badge className={cn('mb-2 text-xs', getTriggerColor(cueCard.objectionType))}>
+              {formatTriggerLabel(cueCard.objectionType)}
             </Badge>
             <h3 className="font-semibold text-base leading-tight">{cueCard.title}</h3>
           </div>
@@ -276,7 +288,7 @@ export function CueCardOverlay({ className, maxCards = 2 }: CueCardOverlayProps)
               <Lightbulb className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {isCallActive
-                  ? 'Cue cards will appear when objections are detected'
+                  ? 'Smart cards will appear when relevant moments are detected'
                   : 'Start recording to see live assistance'}
               </p>
             </div>

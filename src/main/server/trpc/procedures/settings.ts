@@ -27,8 +27,14 @@ import { v4 as uuid } from 'uuid';
 
 // Input Schemas
 
+// Smart card schema (supports both new trigger categories and legacy objection types)
 const cueCardSchema = z.object({
-  objectionType: z.enum(['pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info']),
+  objectionType: z.enum([
+    // New trigger categories
+    'open_question', 'decision_point', 'concern', 'risk', 'commitment', 'follow_up', 'information_request',
+    // Legacy objection types for backwards compatibility
+    'pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info'
+  ]),
   title: z.string().min(1),
   talkTracks: z.array(z.string()),
   followUpQuestions: z.array(z.string()),
@@ -48,7 +54,7 @@ const playbookItemSchema = z.object({
 
 const playbookSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(['MEDDIC', 'Challenger', 'SPIN', 'Custom']),
+  type: z.enum(['1on1', 'ProjectReview', 'Retrospective', 'Discovery', 'Interview', 'Brainstorm', 'Custom']),
   description: z.string().optional(),
   items: z.array(playbookItemSchema),
 });

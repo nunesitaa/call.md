@@ -77,13 +77,18 @@ export const bookmarks = sqliteTable('bookmarks', {
 }));
 
 /**
- * Cue Cards
- * Pre-configured objection handling cards with talk tracks
+ * Smart Cards (formerly Cue Cards)
+ * Context-aware prompts with suggested responses
  */
 export const cueCards = sqliteTable('cue_cards', {
   id: text('id').primaryKey(),
   objectionType: text('objection_type', {
-    enum: ['pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info']
+    enum: [
+      // New trigger categories
+      'open_question', 'decision_point', 'concern', 'risk', 'commitment', 'follow_up', 'information_request',
+      // Legacy objection types
+      'pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info'
+    ]
   }).notNull(),
   title: text('title').notNull(),
   talkTracks: text('talk_tracks').notNull(), // JSON array of strings
@@ -119,13 +124,13 @@ export const cueCardTriggers = sqliteTable('cue_card_triggers', {
 }));
 
 /**
- * Playbooks
- * Meeting methodology definitions (MEDDIC, Challenger, Custom)
+ * Meeting Templates (Agendas)
+ * Pre-defined meeting structures for different meeting types
  */
 export const playbooks = sqliteTable('playbooks', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  type: text('type', { enum: ['MEDDIC', 'Challenger', 'SPIN', 'Custom'] }).notNull(),
+  type: text('type', { enum: ['1on1', 'ProjectReview', 'Retrospective', 'Discovery', 'Interview', 'Brainstorm', 'Custom'] }).notNull(),
   description: text('description'),
   items: text('items').notNull(), // JSON array of PlaybookItem
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),

@@ -1,7 +1,7 @@
 /**
  * Sentiment Indicator Component
  *
- * Displays customer sentiment with trend visualization.
+ * Displays participant sentiment with trend visualization.
  * Compact view for sidebar, expanded view with history.
  */
 
@@ -125,7 +125,7 @@ export function SentimentIndicator({ className, compact = false }: SentimentIndi
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Heart className="h-4 w-4" />
-            Customer Sentiment
+            Participant Sentiment
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -175,7 +175,7 @@ export function SentimentIndicator({ className, compact = false }: SentimentIndi
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Heart className="h-4 w-4" />
-            Customer Sentiment
+            Participant Sentiment
           </CardTitle>
           <Badge
             variant={
@@ -225,8 +225,8 @@ export function SentimentIndicator({ className, compact = false }: SentimentIndi
           <div className="p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
             <p className="text-xs text-amber-700 dark:text-amber-400">
               {sentiment.current === 'negative'
-                ? 'Customer may have concerns - consider addressing them'
-                : 'Sentiment is declining - check in with the customer'}
+                ? 'Participant may have concerns - consider addressing them'
+                : 'Sentiment is declining - consider checking in'}
             </p>
           </div>
         )}

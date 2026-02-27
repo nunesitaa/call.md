@@ -66,7 +66,7 @@ function TalkRatioBar({ meRatio, themRatio }: TalkRatioBarProps) {
       {!isBalanced && meRatio > 0.65 && (
         <p className="text-xs text-amber-600 flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" />
-          Consider letting the customer speak more
+          Consider letting them speak more
         </p>
       )}
     </div>

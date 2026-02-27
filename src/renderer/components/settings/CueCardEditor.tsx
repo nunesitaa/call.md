@@ -44,22 +44,35 @@ import { Plus, Pencil, Trash2, MessageSquare, HelpCircle, X } from 'lucide-react
 import { trpc } from '../../api/trpc';
 import { cn } from '../../lib/utils';
 
-const OBJECTION_TYPES = [
-  { value: 'pricing', label: 'Pricing', color: 'bg-green-100 text-green-800' },
-  { value: 'timing', label: 'Timing', color: 'bg-amber-100 text-amber-800' },
-  { value: 'competitor', label: 'Competitor', color: 'bg-purple-100 text-purple-800' },
-  { value: 'authority', label: 'Authority', color: 'bg-blue-100 text-blue-800' },
-  { value: 'security', label: 'Security', color: 'bg-red-100 text-red-800' },
-  { value: 'integration', label: 'Integration', color: 'bg-cyan-100 text-cyan-800' },
-  { value: 'not_interested', label: 'Not Interested', color: 'bg-gray-100 text-gray-800' },
-  { value: 'send_info', label: 'Send Info', color: 'bg-indigo-100 text-indigo-800' },
-] as const;
+// New trigger categories (preferred)
+const TRIGGER_CATEGORIES = [
+  { value: 'open_question', label: 'Open Question', color: 'bg-blue-100 text-blue-800' },
+  { value: 'decision_point', label: 'Decision Point', color: 'bg-purple-100 text-purple-800' },
+  { value: 'concern', label: 'Concern', color: 'bg-amber-100 text-amber-800' },
+  { value: 'risk', label: 'Risk', color: 'bg-red-100 text-red-800' },
+  { value: 'commitment', label: 'Commitment', color: 'bg-green-100 text-green-800' },
+  { value: 'follow_up', label: 'Follow Up', color: 'bg-cyan-100 text-cyan-800' },
+  { value: 'information_request', label: 'Info Request', color: 'bg-indigo-100 text-indigo-800' },
+  // Legacy types for backwards compatibility with existing data
+  { value: 'pricing', label: 'Pricing (Legacy)', color: 'bg-green-100 text-green-800' },
+  { value: 'timing', label: 'Timing (Legacy)', color: 'bg-amber-100 text-amber-800' },
+  { value: 'competitor', label: 'Competitor (Legacy)', color: 'bg-purple-100 text-purple-800' },
+  { value: 'authority', label: 'Authority (Legacy)', color: 'bg-blue-100 text-blue-800' },
+  { value: 'security', label: 'Security (Legacy)', color: 'bg-red-100 text-red-800' },
+  { value: 'integration', label: 'Integration (Legacy)', color: 'bg-cyan-100 text-cyan-800' },
+  { value: 'not_interested', label: 'Not Interested (Legacy)', color: 'bg-gray-100 text-gray-800' },
+  { value: 'send_info', label: 'Send Info (Legacy)', color: 'bg-indigo-100 text-indigo-800' },
+];
 
-type ObjectionType = typeof OBJECTION_TYPES[number]['value'];
+// For backwards compatibility
+const OBJECTION_TYPES = TRIGGER_CATEGORIES;
+
+type TriggerCategory = typeof TRIGGER_CATEGORIES[number]['value'];
+type ObjectionType = string; // Use string for flexibility with both old and new types
 
 interface CueCard {
   id: string;
-  objectionType: ObjectionType;
+  objectionType: string;
   title: string;
   talkTracks: string[];
   followUpQuestions: string[];
@@ -70,7 +83,7 @@ interface CueCard {
 }
 
 interface CueCardFormData {
-  objectionType: ObjectionType;
+  objectionType: string;
   title: string;
   talkTracks: string;
   followUpQuestions: string;
@@ -80,7 +93,7 @@ interface CueCardFormData {
 }
 
 const emptyForm: CueCardFormData = {
-  objectionType: 'pricing',
+  objectionType: 'open_question',
   title: '',
   talkTracks: '',
   followUpQuestions: '',
@@ -123,16 +136,16 @@ function CueCardForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="objectionType">Objection Type</Label>
+          <Label htmlFor="triggerCategory">Trigger Category</Label>
           <Select
             value={form.objectionType}
-            onValueChange={(v) => setForm({ ...form, objectionType: v as ObjectionType })}
+            onValueChange={(v) => setForm({ ...form, objectionType: v })}
           >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {OBJECTION_TYPES.map((type) => (
+              {TRIGGER_CATEGORIES.map((type) => (
                 <SelectItem key={type.value} value={type.value}>
                   {type.label}
                 </SelectItem>
@@ -146,7 +159,7 @@ function CueCardForm({
             id="title"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="e.g., Handling Pricing Objections"
+            placeholder="e.g., Responding to Open Questions"
             required
           />
         </div>
@@ -189,7 +202,7 @@ function CueCardForm({
             id="proofPoints"
             value={form.proofPoints}
             onChange={(e) => setForm({ ...form, proofPoints: e.target.value })}
-            placeholder="Average customer sees 3x ROI&#10;Reduces manual work by 40%"
+            placeholder="Key data point or statistic&#10;Reference from documentation"
             rows={2}
           />
         </div>
@@ -256,7 +269,7 @@ export function CueCardEditor() {
 
   const handleCreate = (data: CueCardFormData) => {
     createMutation.mutate({
-      objectionType: data.objectionType,
+      objectionType: data.objectionType as TriggerCategory,
       title: data.title,
       talkTracks: data.talkTracks.split('\n').filter(Boolean),
       followUpQuestions: data.followUpQuestions.split('\n').filter(Boolean),
@@ -271,7 +284,7 @@ export function CueCardEditor() {
     updateMutation.mutate({
       id: editingCard.id,
       data: {
-        objectionType: data.objectionType,
+        objectionType: data.objectionType as TriggerCategory,
         title: data.title,
         talkTracks: data.talkTracks.split('\n').filter(Boolean),
         followUpQuestions: data.followUpQuestions.split('\n').filter(Boolean),
@@ -290,23 +303,23 @@ export function CueCardEditor() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Cue Cards</h3>
+          <h3 className="text-lg font-medium">Smart Cards</h3>
           <p className="text-sm text-muted-foreground">
-            Customize objection handling cards shown during calls
+            Customize context-aware prompts shown during meetings
           </p>
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Add Cue Card
+              Add Smart Card
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Cue Card</DialogTitle>
+              <DialogTitle>Create Smart Card</DialogTitle>
               <DialogDescription>
-                Add a new objection handling card with talk tracks and questions.
+                Add a new smart card with suggested responses and follow-up questions.
               </DialogDescription>
             </DialogHeader>
             <CueCardForm
@@ -357,7 +370,7 @@ export function CueCardEditor() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Cue Card</AlertDialogTitle>
+                          <AlertDialogTitle>Delete Smart Card</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete "{card.title}"? This action cannot be
                             undone.
@@ -407,7 +420,7 @@ export function CueCardEditor() {
 
           {(!cueCards || cueCards.length === 0) && (
             <div className="text-center py-8 text-muted-foreground">
-              No cue cards yet. Create one to get started.
+              No smart cards yet. Create one to get started.
             </div>
           )}
         </div>
@@ -417,8 +430,8 @@ export function CueCardEditor() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Cue Card</DialogTitle>
-            <DialogDescription>Update the objection handling card.</DialogDescription>
+            <DialogTitle>Edit Smart Card</DialogTitle>
+            <DialogDescription>Update the smart card content.</DialogDescription>
           </DialogHeader>
           {editingCard && (
             <CueCardForm

@@ -1,8 +1,8 @@
 /**
  * Summary Generator Service
  *
- * Fast extraction of key call outcomes using parallel LLM calls.
- * Generates summary bullets, pain points, objections, commitments,
+ * Fast extraction of key meeting outcomes using parallel LLM calls.
+ * Generates summary bullets, pain points, concerns, commitments,
  * and next steps with evidence linking to transcript timestamps.
  */
 
@@ -31,13 +31,16 @@ export interface ActionItem {
   evidence: Evidence[];
 }
 
-export interface Objection {
+export interface Concern {
   type: string;
   text: string;
   response?: string;
   resolved: boolean;
   timestamp: number;
 }
+
+// Backwards compatibility alias
+export type Objection = Concern;
 
 export interface Commitment {
   who: 'me' | 'them';
@@ -48,14 +51,17 @@ export interface Commitment {
 
 export interface CallSummary {
   bullets: string[]; // 5-10 bullet summary
-  customerPain: string[]; // Pain points mentioned
-  customerGoals: string[]; // Goals/objectives mentioned
-  objections: Objection[];
+  customerPain: string[]; // Challenges discussed (field name kept for backwards compat)
+  customerGoals: string[]; // Objectives identified (field name kept for backwards compat)
+  concerns: Concern[]; // Concerns raised during the meeting
   commitments: Commitment[];
   nextSteps: ActionItem[];
   keyDecisions: string[];
+  openQuestions: string[]; // Unresolved questions
   riskFlags: string[];
   generatedAt: number;
+  // Backwards compatibility aliases
+  objections?: Concern[];
 }
 
 export interface FullCallReport {
@@ -86,28 +92,31 @@ export class SummaryGeneratorService {
     // Run extractions in parallel for speed with error handling
     let bullets: string[] = [];
     let painAndGoals: { pain: string[]; goals: string[] } = { pain: [], goals: [] };
-    let objections: Objection[] = [];
+    let concerns: Concern[] = [];
     let commitments: Commitment[] = [];
     let nextSteps: ActionItem[] = [];
     let decisions: string[] = [];
+    let openQuestions: string[] = [];
 
     try {
       const results = await Promise.allSettled([
         this.extractBullets(finalSegments),
         this.extractPainAndGoals(finalSegments),
-        this.extractObjections(finalSegments),
+        this.extractConcerns(finalSegments),
         this.extractCommitments(finalSegments),
         this.extractNextSteps(finalSegments),
         this.extractDecisions(finalSegments),
+        this.extractOpenQuestions(finalSegments),
       ]);
 
       // Process results, using defaults for any that failed
       bullets = results[0].status === 'fulfilled' ? results[0].value : [];
       painAndGoals = results[1].status === 'fulfilled' ? results[1].value : { pain: [], goals: [] };
-      objections = results[2].status === 'fulfilled' ? results[2].value : [];
+      concerns = results[2].status === 'fulfilled' ? results[2].value : [];
       commitments = results[3].status === 'fulfilled' ? results[3].value : [];
       nextSteps = results[4].status === 'fulfilled' ? results[4].value : [];
       decisions = results[5].status === 'fulfilled' ? results[5].value : [];
+      openQuestions = results[6].status === 'fulfilled' ? results[6].value : [];
 
       // Log any failures
       const failures = results.filter(r => r.status === 'rejected');
@@ -125,26 +134,29 @@ export class SummaryGeneratorService {
         bullets: bullets.length,
         painPoints: painAndGoals.pain.length,
         goals: painAndGoals.goals.length,
-        objections: objections.length,
+        concerns: concerns.length,
         commitments: commitments.length,
         nextSteps: nextSteps.length,
         decisions: decisions.length,
+        openQuestions: openQuestions.length,
       }, 'Summary extraction complete');
     } catch (error) {
       log.error({ error }, 'Summary generation failed completely');
     }
 
     // Extract risk flags from various sources
-    const riskFlags = this.identifyRisks(objections, painAndGoals.pain, commitments);
+    const riskFlags = this.identifyRisks(concerns, painAndGoals.pain, commitments);
 
     return {
       bullets,
       customerPain: painAndGoals.pain,
       customerGoals: painAndGoals.goals,
-      objections,
+      concerns,
+      objections: concerns, // Backwards compatibility
       commitments,
       nextSteps,
       keyDecisions: decisions,
+      openQuestions,
       riskFlags,
       generatedAt: Date.now(),
     };
@@ -207,25 +219,25 @@ Respond with JSON:
   }
 
   /**
-   * Extract pain points and goals
+   * Extract challenges and objectives discussed
    */
   private async extractPainAndGoals(
     segments: TranscriptSegmentData[]
   ): Promise<{ pain: string[]; goals: string[] }> {
-    // Focus on customer statements
+    // Focus on other participant statements
     const themSegments = segments.filter(s => s.channel === 'them');
     const transcript = this.formatTranscript(themSegments);
     const llm = getLLMService();
 
-    const prompt = `Extract the participant's pain points and goals from this meeting.
+    const prompt = `Extract challenges discussed and objectives/goals mentioned from this meeting.
 
-Customer statements:
+Participant statements:
 ${transcript}
 
 Respond with JSON:
 {
-  "pain_points": ["pain 1", "pain 2"],
-  "goals": ["goal 1", "goal 2"]
+  "pain_points": ["challenge 1", "challenge 2"],
+  "goals": ["objective 1", "objective 2"]
 }`;
 
     try {
@@ -248,23 +260,23 @@ Respond with JSON:
   }
 
   /**
-   * Extract objections and responses
+   * Extract concerns raised and how they were addressed
    */
-  private async extractObjections(segments: TranscriptSegmentData[]): Promise<Objection[]> {
+  private async extractConcerns(segments: TranscriptSegmentData[]): Promise<Concern[]> {
     const transcript = this.formatFullTranscript(segments);
     const llm = getLLMService();
 
-    const prompt = `Extract objections or concerns raised and how they were addressed.
+    const prompt = `Extract concerns, hesitations, or pushback raised during this meeting and how they were addressed.
 
 ${transcript}
 
 Respond with JSON:
 {
-  "objections": [
+  "concerns": [
     {
-      "type": "pricing|timing|competitor|authority|other",
-      "text": "what customer said",
-      "response": "how rep responded (if captured)",
+      "type": "budget|timeline|risk|scope|resource|technical|other",
+      "text": "what was said",
+      "response": "how it was addressed (if captured)",
       "resolved": true/false,
       "timestamp": seconds from start
     }
@@ -273,20 +285,52 @@ Respond with JSON:
 
     try {
       const response = await llm.completeJSON<{
-        objections: Array<{
+        concerns: Array<{
           type: string;
           text: string;
           response?: string;
           resolved: boolean;
           timestamp: number;
         }>;
-      }>(prompt, 'You are a meeting objection analysis expert. Return valid JSON only.');
+      }>(prompt, 'You are a meeting analysis expert. Return valid JSON only.');
 
       if (response.success && response.data) {
-        return response.data.objections || [];
+        return response.data.concerns || [];
       }
     } catch (error) {
-      log.warn({ error }, 'Objection extraction failed');
+      log.warn({ error }, 'Concern extraction failed');
+    }
+
+    return [];
+  }
+
+  /**
+   * Extract open questions that weren't fully answered
+   */
+  private async extractOpenQuestions(segments: TranscriptSegmentData[]): Promise<string[]> {
+    const transcript = this.formatFullTranscript(segments);
+    const llm = getLLMService();
+
+    const prompt = `Identify questions that were asked during this meeting but weren't fully answered or need follow-up.
+
+${transcript}
+
+Respond with JSON:
+{
+  "open_questions": ["question 1", "question 2"]
+}`;
+
+    try {
+      const response = await llm.completeJSON<{ open_questions: string[] }>(
+        prompt,
+        'You are a meeting analysis expert. Return valid JSON only.'
+      );
+
+      if (response.success && response.data) {
+        return response.data.open_questions || [];
+      }
+    } catch (error) {
+      log.warn({ error }, 'Open questions extraction failed');
     }
 
     return [];
@@ -421,26 +465,26 @@ Respond with JSON:
    * Identify risk flags from extracted data
    */
   private identifyRisks(
-    objections: Objection[],
+    concerns: Concern[],
     painPoints: string[],
     commitments: Commitment[]
   ): string[] {
     const risks: string[] = [];
 
-    // Unresolved objections
-    const unresolvedObjections = objections.filter(o => !o.resolved);
-    if (unresolvedObjections.length > 0) {
-      risks.push(`${unresolvedObjections.length} unresolved objection(s)`);
+    // Unresolved concerns
+    const unresolvedConcerns = concerns.filter(c => !c.resolved);
+    if (unresolvedConcerns.length > 0) {
+      risks.push(`${unresolvedConcerns.length} unresolved concern(s)`);
     }
 
-    // Authority objection (decision maker not identified)
-    if (objections.some(o => o.type === 'authority')) {
-      risks.push('Decision maker may not be identified');
+    // Risk-related concerns
+    if (concerns.some(c => c.type === 'risk' || c.type === 'blocker')) {
+      risks.push('Risk or blocker identified');
     }
 
     // No pain points identified
     if (painPoints.length === 0) {
-      risks.push('Pain points not clearly identified');
+      risks.push('Key challenges not clearly identified');
     }
 
     // No commitments from other participant
@@ -487,10 +531,12 @@ Respond with JSON:
       bullets: [],
       customerPain: [],
       customerGoals: [],
-      objections: [],
+      concerns: [],
+      objections: [], // Backwards compatibility
       commitments: [],
       nextSteps: [],
       keyDecisions: [],
+      openQuestions: [],
       riskFlags: [],
       generatedAt: Date.now(),
     };

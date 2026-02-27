@@ -83,7 +83,7 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
 
     CREATE TABLE IF NOT EXISTS cue_cards (
       id TEXT PRIMARY KEY,
-      objection_type TEXT NOT NULL CHECK(objection_type IN ('pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info')),
+      objection_type TEXT NOT NULL CHECK(objection_type IN ('open_question', 'decision_point', 'concern', 'risk', 'commitment', 'follow_up', 'information_request', 'pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info')),
       title TEXT NOT NULL,
       talk_tracks TEXT NOT NULL,
       follow_up_questions TEXT NOT NULL,
@@ -112,7 +112,7 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
     CREATE TABLE IF NOT EXISTS playbooks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('MEDDIC', 'Challenger', 'SPIN', 'Custom')),
+      type TEXT NOT NULL CHECK(type IN ('1on1', 'ProjectReview', 'Retrospective', 'Discovery', 'Interview', 'Brainstorm', 'Custom')),
       description TEXT,
       items TEXT NOT NULL,
       is_default INTEGER NOT NULL DEFAULT 0,
@@ -510,6 +510,15 @@ export function updateCueCardTrigger(id: string, data: Partial<schema.CueCardTri
     .get();
 }
 
+// Smart Card aliases (new naming convention)
+export const getSmartCardsByType = getCueCardsByType;
+export const getAllSmartCards = getAllCueCards;
+export const createSmartCard = createCueCard;
+export const updateSmartCard = updateCueCard;
+export const createSmartCardTrigger = createCueCardTrigger;
+export const getSmartCardTriggersByRecording = getCueCardTriggersByRecording;
+export const updateSmartCardTrigger = updateCueCardTrigger;
+
 
 export function getPlaybookById(id: string) {
   const database = getDatabase();
@@ -824,104 +833,71 @@ function seedDefaultPlaybooks() {
   const existing = database
     .select()
     .from(schema.playbooks)
-    .where(eq(schema.playbooks.id, 'playbook-meddic'))
+    .where(eq(schema.playbooks.id, 'template-1on1'))
     .get();
 
   if (existing) return;
 
-  const meddicPlaybook: schema.NewPlaybook = {
-    id: 'playbook-meddic',
-    name: 'MEDDIC Methodology',
-    type: 'MEDDIC',
-    description: 'A qualification framework focusing on Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, and Champion.',
+  // 1:1 Check-in Template
+  const oneOnOneTemplate: schema.NewPlaybook = {
+    id: 'template-1on1',
+    name: '1:1 Check-in',
+    type: 'Custom',
+    description: 'A structured template for one-on-one meetings covering updates, goals, blockers, and feedback.',
     items: JSON.stringify([
       {
-        id: 'm-metrics',
-        label: 'Metrics',
-        description: 'Quantify the business impact and ROI',
-        keywords: ['ROI', 'cost savings', 'revenue', 'efficiency', 'metrics', 'numbers', 'measure', 'KPI'],
+        id: 'updates',
+        label: 'Updates & Progress',
+        description: 'Review recent progress and accomplishments',
+        keywords: ['update', 'progress', 'completed', 'finished', 'done', 'accomplished', 'shipped'],
         suggestedQuestions: [
-          'What metrics matter most to your team?',
-          'How do you measure success today?',
-          'What would success look like in numbers?',
-          'What\'s the potential impact on revenue/costs?'
+          'What have you been working on since we last met?',
+          'What are you most proud of recently?',
+          'Any wins you want to share?'
         ],
-        detectionPrompt: 'Did the conversation discuss quantifiable business metrics, ROI, or measurable outcomes?',
+        detectionPrompt: 'Were updates or recent progress discussed?',
         status: 'missing',
         evidence: []
       },
       {
-        id: 'e-economic-buyer',
-        label: 'Economic Buyer',
-        description: 'Identify who has budget authority',
-        keywords: ['budget', 'decision maker', 'approve', 'CFO', 'procurement', 'sign off', 'authority'],
+        id: 'goals',
+        label: 'Goals & Priorities',
+        description: 'Discuss current and upcoming priorities',
+        keywords: ['goal', 'priority', 'focus', 'objective', 'target', 'plan', 'next'],
         suggestedQuestions: [
-          'Who controls the budget for this initiative?',
-          'Who needs to sign off on this purchase?',
-          'What\'s your procurement process?',
-          'Who else should be involved in this discussion?'
+          'What are your top priorities for the coming week?',
+          'Are your current goals still relevant?',
+          'What do you want to accomplish by our next meeting?'
         ],
-        detectionPrompt: 'Was the economic buyer or budget authority identified in the conversation?',
+        detectionPrompt: 'Were goals or priorities discussed?',
         status: 'missing',
         evidence: []
       },
       {
-        id: 'd-decision-criteria',
-        label: 'Decision Criteria',
-        description: 'Understand how they will evaluate solutions',
-        keywords: ['criteria', 'requirements', 'must have', 'evaluate', 'compare', 'features', 'needs'],
+        id: 'blockers',
+        label: 'Blockers & Challenges',
+        description: 'Identify obstacles and how to resolve them',
+        keywords: ['blocker', 'challenge', 'stuck', 'problem', 'issue', 'help', 'support', 'difficulty'],
         suggestedQuestions: [
-          'What criteria will you use to make this decision?',
-          'What are your must-have requirements?',
-          'How will you evaluate different options?',
-          'What would make one solution stand out?'
+          'What\'s blocking your progress?',
+          'Where do you need help or support?',
+          'Any challenges I can help with?'
         ],
-        detectionPrompt: 'Were the decision criteria or evaluation requirements discussed?',
+        detectionPrompt: 'Were blockers or challenges discussed?',
         status: 'missing',
         evidence: []
       },
       {
-        id: 'd-decision-process',
-        label: 'Decision Process',
-        description: 'Map out the buying process and timeline',
-        keywords: ['process', 'timeline', 'steps', 'approval', 'buying', 'next steps', 'when'],
+        id: 'feedback',
+        label: 'Feedback & Development',
+        description: 'Exchange feedback and discuss growth',
+        keywords: ['feedback', 'improve', 'grow', 'learn', 'development', 'coaching', 'suggestion'],
         suggestedQuestions: [
-          'What\'s your typical buying process?',
-          'What are the steps to get this approved?',
-          'What\'s your timeline for making a decision?',
-          'Who else needs to be involved?'
+          'Is there any feedback you\'d like to share?',
+          'What skills would you like to develop?',
+          'How can I better support you?'
         ],
-        detectionPrompt: 'Was the decision-making process or timeline discussed?',
-        status: 'missing',
-        evidence: []
-      },
-      {
-        id: 'i-identify-pain',
-        label: 'Identify Pain',
-        description: 'Uncover the business problems and challenges',
-        keywords: ['problem', 'challenge', 'pain', 'issue', 'struggle', 'difficulty', 'frustration', 'bottleneck'],
-        suggestedQuestions: [
-          'What challenges are you facing today?',
-          'What\'s the impact of this problem on your business?',
-          'How long has this been an issue?',
-          'What happens if you don\'t solve this?'
-        ],
-        detectionPrompt: 'Were specific pain points, challenges, or problems discussed?',
-        status: 'missing',
-        evidence: []
-      },
-      {
-        id: 'c-champion',
-        label: 'Champion',
-        description: 'Identify an internal advocate',
-        keywords: ['champion', 'advocate', 'internal', 'support', 'sponsor', 'push', 'drive'],
-        suggestedQuestions: [
-          'Who internally would champion this initiative?',
-          'Who else is excited about solving this problem?',
-          'Who can help drive this forward internally?',
-          'Who would benefit most from this solution?'
-        ],
-        detectionPrompt: 'Was an internal champion or advocate identified?',
+        detectionPrompt: 'Was feedback or development discussed?',
         status: 'missing',
         evidence: []
       }
@@ -929,53 +905,68 @@ function seedDefaultPlaybooks() {
     isDefault: true,
   };
 
-  database.insert(schema.playbooks).values(meddicPlaybook).run();
+  database.insert(schema.playbooks).values(oneOnOneTemplate).run();
 
-  const challengerPlaybook: schema.NewPlaybook = {
-    id: 'playbook-challenger',
-    name: 'Challenger Method',
-    type: 'Challenger',
-    description: 'A methodology focused on teaching, tailoring, and taking control of the conversation.',
+  // Project Review Template
+  const projectReviewTemplate: schema.NewPlaybook = {
+    id: 'template-project-review',
+    name: 'Project Review',
+    type: 'Custom',
+    description: 'A template for project status meetings covering progress, risks, decisions, and next steps.',
     items: JSON.stringify([
       {
-        id: 'teach',
-        label: 'Teach',
-        description: 'Share unique insights and perspectives',
-        keywords: ['insight', 'research', 'data', 'trend', 'industry', 'benchmark', 'best practice'],
+        id: 'status',
+        label: 'Status Overview',
+        description: 'Review overall project status and timeline',
+        keywords: ['status', 'timeline', 'schedule', 'on track', 'behind', 'ahead', 'milestone'],
         suggestedQuestions: [
-          'Have you seen the latest research on...?',
-          'What trends are you noticing in your industry?',
-          'How does your approach compare to industry benchmarks?'
+          'What\'s the overall project status?',
+          'Are we on track with the timeline?',
+          'Any milestones coming up?'
         ],
-        detectionPrompt: 'Did you share unique insights or teach the participant something new?',
+        detectionPrompt: 'Was the project status or timeline discussed?',
         status: 'missing',
         evidence: []
       },
       {
-        id: 'tailor',
-        label: 'Tailor',
-        description: 'Customize the message to the participant',
-        keywords: ['specific', 'your situation', 'customize', 'relevant', 'for you', 'in your case'],
+        id: 'risks',
+        label: 'Risks & Issues',
+        description: 'Identify and discuss project risks',
+        keywords: ['risk', 'issue', 'concern', 'problem', 'blocker', 'delay', 'impact'],
         suggestedQuestions: [
-          'How does this apply to your specific situation?',
-          'What\'s unique about your environment?',
-          'How would this work in your context?'
+          'What risks should we be aware of?',
+          'Any issues that need escalation?',
+          'What could derail the project?'
         ],
-        detectionPrompt: 'Was the conversation tailored to the participant\'s specific situation?',
+        detectionPrompt: 'Were project risks or issues discussed?',
         status: 'missing',
         evidence: []
       },
       {
-        id: 'take-control',
-        label: 'Take Control',
-        description: 'Guide the conversation and next steps',
-        keywords: ['next step', 'recommend', 'suggest', 'should', 'let\'s', 'I propose'],
+        id: 'decisions',
+        label: 'Decisions Needed',
+        description: 'Identify decisions that need to be made',
+        keywords: ['decide', 'decision', 'choose', 'option', 'approve', 'agree', 'consensus'],
         suggestedQuestions: [
-          'I recommend we...',
-          'The next step should be...',
-          'Let\'s set up...'
+          'What decisions do we need to make?',
+          'Who needs to be involved in this decision?',
+          'What are our options?'
         ],
-        detectionPrompt: 'Did you take control by guiding next steps and recommendations?',
+        detectionPrompt: 'Were decisions discussed or made?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'next-steps',
+        label: 'Next Steps',
+        description: 'Define action items and next steps',
+        keywords: ['next', 'action', 'step', 'task', 'owner', 'deadline', 'follow up'],
+        suggestedQuestions: [
+          'What are the next steps?',
+          'Who owns each action item?',
+          'When do we need this completed?'
+        ],
+        detectionPrompt: 'Were next steps or action items defined?',
         status: 'missing',
         evidence: []
       }
@@ -983,9 +974,271 @@ function seedDefaultPlaybooks() {
     isDefault: false,
   };
 
-  database.insert(schema.playbooks).values(challengerPlaybook).run();
+  database.insert(schema.playbooks).values(projectReviewTemplate).run();
 
-  logger.info('Seeded default playbooks');
+  // Retrospective Template
+  const retroTemplate: schema.NewPlaybook = {
+    id: 'template-retrospective',
+    name: 'Retrospective',
+    type: 'Custom',
+    description: 'A template for team retrospectives covering what went well, what could improve, and action items.',
+    items: JSON.stringify([
+      {
+        id: 'went-well',
+        label: 'What Went Well',
+        description: 'Celebrate successes and positive outcomes',
+        keywords: ['well', 'good', 'great', 'success', 'win', 'proud', 'worked', 'positive'],
+        suggestedQuestions: [
+          'What went well this sprint/period?',
+          'What should we keep doing?',
+          'What are we proud of?'
+        ],
+        detectionPrompt: 'Were positive outcomes or successes discussed?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'improve',
+        label: 'What Could Improve',
+        description: 'Identify areas for improvement',
+        keywords: ['improve', 'better', 'challenge', 'difficult', 'issue', 'problem', 'frustrating'],
+        suggestedQuestions: [
+          'What could we do better?',
+          'What was frustrating or challenging?',
+          'What should we stop doing?'
+        ],
+        detectionPrompt: 'Were improvement areas or challenges discussed?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'actions',
+        label: 'Action Items',
+        description: 'Define concrete actions to take',
+        keywords: ['action', 'do', 'change', 'try', 'experiment', 'implement', 'commit'],
+        suggestedQuestions: [
+          'What specific actions will we take?',
+          'Who will own each action?',
+          'How will we measure success?'
+        ],
+        detectionPrompt: 'Were action items or commitments defined?',
+        status: 'missing',
+        evidence: []
+      }
+    ]),
+    isDefault: false,
+  };
+
+  database.insert(schema.playbooks).values(retroTemplate).run();
+
+  // Discovery/Requirements Template
+  const discoveryTemplate: schema.NewPlaybook = {
+    id: 'template-discovery',
+    name: 'Discovery / Requirements',
+    type: 'Custom',
+    description: 'A template for discovery and requirements gathering meetings.',
+    items: JSON.stringify([
+      {
+        id: 'context',
+        label: 'Context & Background',
+        description: 'Understand the situation and context',
+        keywords: ['context', 'background', 'situation', 'currently', 'today', 'existing', 'history'],
+        suggestedQuestions: [
+          'Can you give me some background on this?',
+          'What\'s the current situation?',
+          'How did we get here?'
+        ],
+        detectionPrompt: 'Was context or background discussed?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'goals',
+        label: 'Goals & Outcomes',
+        description: 'Define desired outcomes and success criteria',
+        keywords: ['goal', 'outcome', 'success', 'achieve', 'want', 'need', 'result', 'objective'],
+        suggestedQuestions: [
+          'What are you trying to achieve?',
+          'What does success look like?',
+          'What are your must-have outcomes?'
+        ],
+        detectionPrompt: 'Were goals or desired outcomes discussed?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'requirements',
+        label: 'Requirements & Constraints',
+        description: 'Gather specific requirements and constraints',
+        keywords: ['requirement', 'need', 'must', 'constraint', 'limitation', 'budget', 'timeline'],
+        suggestedQuestions: [
+          'What are the key requirements?',
+          'What constraints do we have?',
+          'What\'s the timeline and budget?'
+        ],
+        detectionPrompt: 'Were requirements or constraints discussed?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'stakeholders',
+        label: 'Stakeholders',
+        description: 'Identify key stakeholders and decision makers',
+        keywords: ['stakeholder', 'team', 'involved', 'decision', 'approval', 'owner', 'responsible'],
+        suggestedQuestions: [
+          'Who are the key stakeholders?',
+          'Who needs to be involved in decisions?',
+          'Who will be impacted by this?'
+        ],
+        detectionPrompt: 'Were stakeholders or decision makers identified?',
+        status: 'missing',
+        evidence: []
+      }
+    ]),
+    isDefault: false,
+  };
+
+  database.insert(schema.playbooks).values(discoveryTemplate).run();
+
+  // Interview Template
+  const interviewTemplate: schema.NewPlaybook = {
+    id: 'template-interview',
+    name: 'Interview',
+    type: 'Custom',
+    description: 'A template for conducting structured interviews (hiring, user research, etc.).',
+    items: JSON.stringify([
+      {
+        id: 'intro',
+        label: 'Introduction & Context',
+        description: 'Set the stage and build rapport',
+        keywords: ['introduce', 'background', 'tell me about', 'yourself', 'role', 'experience'],
+        suggestedQuestions: [
+          'Tell me about yourself',
+          'What brings you here today?',
+          'Can you walk me through your background?'
+        ],
+        detectionPrompt: 'Was there an introduction or context setting?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'core-questions',
+        label: 'Core Questions',
+        description: 'Cover the main interview topics',
+        keywords: ['example', 'time when', 'describe', 'how did you', 'tell me about', 'situation'],
+        suggestedQuestions: [
+          'Can you give me an example of...?',
+          'Tell me about a time when...',
+          'How did you handle...?'
+        ],
+        detectionPrompt: 'Were core interview questions covered?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'deep-dive',
+        label: 'Follow-up & Deep Dive',
+        description: 'Explore responses in more detail',
+        keywords: ['why', 'how', 'what happened', 'result', 'learn', 'differently', 'outcome'],
+        suggestedQuestions: [
+          'Why did you approach it that way?',
+          'What was the result?',
+          'What would you do differently?'
+        ],
+        detectionPrompt: 'Were follow-up questions asked to go deeper?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'questions',
+        label: 'Candidate Questions',
+        description: 'Allow time for their questions',
+        keywords: ['question', 'ask', 'wonder', 'curious', 'want to know', 'anything else'],
+        suggestedQuestions: [
+          'What questions do you have for me?',
+          'Is there anything you\'d like to know?',
+          'What else would be helpful to understand?'
+        ],
+        detectionPrompt: 'Was time given for their questions?',
+        status: 'missing',
+        evidence: []
+      }
+    ]),
+    isDefault: false,
+  };
+
+  database.insert(schema.playbooks).values(interviewTemplate).run();
+
+  // Brainstorm Template
+  const brainstormTemplate: schema.NewPlaybook = {
+    id: 'template-brainstorm',
+    name: 'Brainstorm / Ideation',
+    type: 'Custom',
+    description: 'A template for brainstorming and ideation sessions.',
+    items: JSON.stringify([
+      {
+        id: 'problem',
+        label: 'Problem Definition',
+        description: 'Clearly define the problem to solve',
+        keywords: ['problem', 'challenge', 'solve', 'issue', 'opportunity', 'goal', 'trying to'],
+        suggestedQuestions: [
+          'What problem are we trying to solve?',
+          'Why is this important?',
+          'What does success look like?'
+        ],
+        detectionPrompt: 'Was the problem clearly defined?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'ideas',
+        label: 'Idea Generation',
+        description: 'Generate and capture ideas',
+        keywords: ['idea', 'what if', 'could we', 'maybe', 'option', 'possibility', 'try'],
+        suggestedQuestions: [
+          'What ideas do we have?',
+          'What if we tried...?',
+          'What other options are there?'
+        ],
+        detectionPrompt: 'Were ideas generated and discussed?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'evaluation',
+        label: 'Evaluation & Prioritization',
+        description: 'Evaluate and prioritize ideas',
+        keywords: ['prioritize', 'best', 'feasible', 'impact', 'effort', 'vote', 'rank', 'evaluate'],
+        suggestedQuestions: [
+          'Which ideas have the most potential?',
+          'What\'s feasible given our constraints?',
+          'How should we prioritize?'
+        ],
+        detectionPrompt: 'Were ideas evaluated or prioritized?',
+        status: 'missing',
+        evidence: []
+      },
+      {
+        id: 'next-steps',
+        label: 'Next Steps',
+        description: 'Define actions to move forward',
+        keywords: ['next', 'action', 'do', 'try', 'prototype', 'test', 'follow up'],
+        suggestedQuestions: [
+          'What are our next steps?',
+          'Who will take this forward?',
+          'When will we reconvene?'
+        ],
+        detectionPrompt: 'Were next steps defined?',
+        status: 'missing',
+        evidence: []
+      }
+    ]),
+    isDefault: false,
+  };
+
+  database.insert(schema.playbooks).values(brainstormTemplate).run();
+
+  logger.info('Seeded default meeting templates');
 }
 
 function seedDefaultSettings() {

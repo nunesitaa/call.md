@@ -346,10 +346,10 @@ export function RecordingDetailsModal({
                     </div>
                   )}
 
-                  {/* Customer Pain */}
+                  {/* Challenges Discussed */}
                   {callSummary.customerPain && callSummary.customerPain.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Customer Pain Points</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Challenges Discussed</p>
                       <ul className="space-y-0.5">
                         {callSummary.customerPain.map((pain, i) => (
                           <li key={i} className="text-sm">• {pain}</li>
@@ -366,7 +366,7 @@ export function RecordingDetailsModal({
                         {callSummary.nextSteps.map((step, i) => (
                           <div key={i} className="flex items-center gap-2 text-sm">
                             <Badge variant="outline" className="text-xs">
-                              {step.owner === 'me' ? 'You' : step.owner === 'them' ? 'Customer' : 'Both'}
+                              {step.owner === 'me' ? 'You' : step.owner === 'them' ? 'Them' : 'Both'}
                             </Badge>
                             <span>{step.action}</span>
                           </div>
@@ -375,10 +375,10 @@ export function RecordingDetailsModal({
                     </div>
                   )}
 
-                  {/* Objections */}
+                  {/* Concerns */}
                   {callSummary.objections && callSummary.objections.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Objections Raised</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Concerns Raised</p>
                       <div className="space-y-1">
                         {callSummary.objections.map((obj, i) => (
                           <div key={i} className="p-2 bg-muted/30 rounded text-sm">

@@ -64,8 +64,16 @@ export {
   type NudgeConfig,
 } from './nudge-engine.service';
 
-// Cue card engine
+// Smart card engine (formerly cue card engine)
 export {
+  SmartCardEngineService,
+  getSmartCardEngine,
+  resetSmartCardEngine,
+  type TriggerCategory,
+  type SmartCardContent,
+  type SmartCardTriggerData,
+  type TriggerDetectionResult,
+  // Backwards compatibility aliases
   CueCardEngineService,
   getCueCardEngine,
   resetCueCardEngine,
@@ -73,7 +81,7 @@ export {
   type CueCardContent,
   type CueCardTriggerData,
   type ObjectionDetectionResult,
-} from './cue-card-engine.service';
+} from './smart-card-engine.service';
 
 // Playbook tracker
 export {
@@ -94,6 +102,7 @@ export {
   resetSummaryGenerator,
   type CallSummary,
   type ActionItem,
+  type Concern,
   type Objection,
   type Commitment,
   type Evidence,
