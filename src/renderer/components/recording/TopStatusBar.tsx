@@ -17,32 +17,18 @@ import { useCopilotStore } from '../../stores/copilot.store';
 import { formatDuration, cn } from '../../lib/utils';
 
 export function TopStatusBar() {
-  const { status, elapsedTime, isRecording, isStopping, stopRecording, startRecording, isStarting } =
+  const { status, elapsedTime, isRecording, isStopping, stopRecording } =
     useSession();
   const { metrics, healthScore, isCallActive } = useCopilotStore();
 
   const mePercent = metrics ? Math.round(metrics.talkRatio.me * 100) : 0;
   const themPercent = metrics ? Math.round(metrics.talkRatio.them * 100) : 0;
 
+  // In idle state, show minimal status bar (MeetingSetupFlow handles recording start)
   if (!isRecording && status === 'idle') {
     return (
-      <div className="h-16 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg flex items-center px-6 gap-6">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Circle className="w-3 h-3 text-slate-400" />
-            <span className="text-2xl font-mono font-bold tracking-tight text-slate-400">0:00</span>
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            READY
-          </Badge>
-        </div>
-
-        <div className="flex-1" />
-
-        <Button size="sm" className="gap-2" onClick={startRecording} disabled={isStarting}>
-          <Circle className="w-3 h-3 fill-current" />
-          Start Recording
-        </Button>
+      <div className="h-14 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg flex items-center justify-center px-6">
+        <span className="text-sm text-muted-foreground">Prepare your meeting below</span>
       </div>
     );
   }

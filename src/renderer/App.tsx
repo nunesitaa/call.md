@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
-import { MainContent } from './components/layout/MainContent';
 import { AuthView } from './components/auth/AuthView';
-import { StreamToggles } from './components/recording/StreamToggles';
 import { TopStatusBar } from './components/recording/TopStatusBar';
 import { TranscriptionPanel } from './components/transcription/TranscriptionPanel';
 import { HistoryView } from './components/history/HistoryView';
@@ -14,16 +12,16 @@ import { useGlobalRecorderEvents } from './hooks/useGlobalRecorderEvents';
 import { useCopilot } from './hooks/useCopilot';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Button } from './components/ui/button';
-import { Badge } from './components/ui/badge';
 import { ErrorToast } from './components/ui/error-toast';
 import { AlertCircle, Shield, Loader2 } from 'lucide-react';
 import {
   NudgeToast,
   CallSummaryView,
 } from './components/copilot';
-import { MCPResultsOverlay } from './components/mcp';
 import { useCopilotStore } from './stores/copilot.store';
+import { useMeetingSetupStore } from './stores/meeting-setup.store';
 import { MCPServersPanel } from './components/settings/MCPServersPanel';
+import { MeetingSetupFlow, MeetingInfoPanel } from './components/meeting-setup';
 
 type Tab = 'recording' | 'history' | 'settings';
 
@@ -88,12 +86,20 @@ function PermissionsView() {
 
 function RecordingView() {
   const { isCallActive, callSummary } = useCopilotStore();
-  const { status, streams, toggleStream, isStarting, isStopping } = useSession();
+  const { status } = useSession();
+  const meetingSetupStore = useMeetingSetupStore();
 
   const isRecording = status === 'recording';
   const isProcessing = status === 'processing' || status === 'stopping';
+  const isIdle = status === 'idle';
 
   useCopilot();
+
+  // Reset meeting setup when starting a new call
+  const handleStartNewCall = () => {
+    useCopilotStore.getState().reset();
+    meetingSetupStore.reset();
+  };
 
   // Show call summary view if call ended and summary available
   if (callSummary && !isCallActive) {
@@ -104,7 +110,7 @@ function RecordingView() {
           <div className="max-w-4xl mx-auto h-full flex flex-col">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-lg font-semibold">Call Complete</h2>
-              <Button variant="outline" size="sm" onClick={() => useCopilotStore.getState().reset()}>
+              <Button variant="outline" size="sm" onClick={handleStartNewCall}>
                 Start New Call
               </Button>
             </div>
@@ -139,6 +145,19 @@ function RecordingView() {
     );
   }
 
+  // Show meeting setup flow when idle (not recording)
+  if (isIdle) {
+    return (
+      <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+        <TopStatusBar />
+        <div className="flex-1 flex items-center justify-center overflow-auto py-8">
+          <MeetingSetupFlow />
+        </div>
+      </div>
+    );
+  }
+
+  // Show recording view with transcription and meeting info
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Top Status Bar */}
@@ -147,38 +166,17 @@ function RecordingView() {
       {/* Main Content Area */}
       <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         {/* Left Column - Transcription */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0">
-          {/* Stream Toggles (only show when not recording) */}
-          {!isRecording && (
-            <Card className="shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Recording Sources</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <StreamToggles
-                  streams={streams}
-                  onToggle={toggleStream}
-                  disabled={isStarting || isStopping}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Transcription Panel */}
+        <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 min-h-0">
             <TranscriptionPanel />
           </div>
         </div>
 
-        {/* Right Column - MCP Results */}
-        <div className="w-96 flex flex-col gap-4 shrink-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto pr-1">
-            {/* MCP Results Overlay - Shows tool call results */}
-            <MCPResultsOverlay />
-          </div>
+        {/* Right Column - Meeting Info Panel */}
+        <div className="w-80 flex flex-col shrink-0 overflow-hidden">
+          <MeetingInfoPanel />
         </div>
       </div>
-
     </div>
   );
 }
@@ -272,17 +270,6 @@ export function App() {
     sessionStore.setError(null);
   };
 
-  const getTitle = () => {
-    switch (activeTab) {
-      case 'recording':
-        return 'Recording';
-      case 'history':
-        return 'History';
-      case 'settings':
-        return 'Settings';
-    }
-  };
-
   const renderContent = () => {
     if (!isAuthenticated) {
       return <AuthView />;
@@ -310,36 +297,6 @@ export function App() {
     }
   };
 
-  // Special layout for recording view - no MainContent header
-  if (isAuthenticated && activeTab === 'recording' && allGranted && !permissionsLoading) {
-    return (
-      <div className="flex flex-col h-screen bg-background">
-        {/* Shared titlebar for macOS traffic lights */}
-        <div className="h-12 flex items-center justify-center border-b bg-background/80 backdrop-blur-lg shrink-0 drag-region relative">
-          {/* Space for traffic lights (absolute so title can center) */}
-          <div className="absolute left-0 w-20 shrink-0" />
-          <span className="text-sm font-medium text-muted-foreground">Meeting Copilot</span>
-        </div>
-
-        {/* Main layout below titlebar */}
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-          <div className="flex-1 overflow-hidden">
-            <RecordingView />
-          </div>
-        </div>
-
-        {/* Global Copilot Components */}
-        <NudgeToast position="bottom" />
-        <ErrorToast
-          message={sessionStore.error}
-          onDismiss={handleDismissError}
-          position="bottom"
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Shared titlebar for macOS traffic lights */}
@@ -352,7 +309,7 @@ export function App() {
       {/* Main layout below titlebar */}
       <div className="flex flex-1 overflow-hidden">
         {isAuthenticated && <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />}
-        <MainContent title={getTitle()}>{renderContent()}</MainContent>
+        <div className="flex-1 overflow-hidden">{renderContent()}</div>
       </div>
 
       {/* Global Copilot Components */}

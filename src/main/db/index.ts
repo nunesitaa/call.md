@@ -50,7 +50,8 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
       status TEXT NOT NULL DEFAULT 'recording' CHECK(status IN ('recording', 'processing', 'available', 'failed')),
       insights TEXT,
       insights_status TEXT NOT NULL DEFAULT 'pending' CHECK(insights_status IN ('pending', 'processing', 'ready', 'failed')),
-      call_summary TEXT,
+      short_overview TEXT,
+      key_points TEXT,
       playbook_snapshot TEXT,
       metrics_snapshot TEXT
     );
@@ -241,9 +242,15 @@ function ensureRecordingColumns(): void {
     }
   };
 
-  addColumnIfMissing('call_summary', "ALTER TABLE recordings ADD COLUMN call_summary TEXT");
+  addColumnIfMissing('short_overview', "ALTER TABLE recordings ADD COLUMN short_overview TEXT");
+  addColumnIfMissing('key_points', "ALTER TABLE recordings ADD COLUMN key_points TEXT");
   addColumnIfMissing('playbook_snapshot', "ALTER TABLE recordings ADD COLUMN playbook_snapshot TEXT");
   addColumnIfMissing('metrics_snapshot', "ALTER TABLE recordings ADD COLUMN metrics_snapshot TEXT");
+  addColumnIfMissing('meeting_name', "ALTER TABLE recordings ADD COLUMN meeting_name TEXT");
+  addColumnIfMissing('meeting_description', "ALTER TABLE recordings ADD COLUMN meeting_description TEXT");
+  addColumnIfMissing('probing_questions', "ALTER TABLE recordings ADD COLUMN probing_questions TEXT");
+  addColumnIfMissing('meeting_checklist', "ALTER TABLE recordings ADD COLUMN meeting_checklist TEXT");
+  addColumnIfMissing('collection_id', "ALTER TABLE recordings ADD COLUMN collection_id TEXT");
 }
 
 function ensureNudgesHistorySchema(): void {

@@ -59,6 +59,8 @@ export {
   SummaryGeneratorService,
   getSummaryGenerator,
   resetSummaryGenerator,
-  type CallSummary,
-  type FullCallReport,
+  type PostMeetingSummary,
+  type KeyPoint,
+  type MeetingContext,
+  type ProbingQA,
 } from './summary-generator.service';

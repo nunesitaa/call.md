@@ -3,10 +3,13 @@ import { z } from 'zod';
 export const RecordingStatusSchema = z.enum(['recording', 'processing', 'available', 'failed']);
 export const InsightsStatusSchema = z.enum(['pending', 'processing', 'ready', 'failed']);
 
-export const CallSummarySchema = z.object({
-  summary: z.string(), // The complete meeting summary as markdown
-  generatedAt: z.number().optional(),
-}).nullable();
+// Key Points schema for structured meeting breakdown
+export const KeyPointSchema = z.object({
+  topic: z.string(),
+  points: z.array(z.string()),
+});
+
+export const KeyPointsSchema = z.array(KeyPointSchema).nullable();
 
 export const PlaybookSnapshotSchema = z.object({
   playbookId: z.string(),
@@ -51,9 +54,26 @@ export const MetricsSnapshotSchema = z.object({
   interruptionCount: z.number(),
 }).nullable();
 
+// Meeting Setup schemas
+export const ProbingQuestionSchema = z.object({
+  question: z.string(),
+  type: z.enum(['single-choice', 'multi-choice']),
+  options: z.array(z.string()),
+  answer: z.string(),
+  customAnswer: z.string().optional(),
+});
+
+export const MeetingSetupSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  questions: z.array(ProbingQuestionSchema),
+  checklist: z.array(z.string()),
+}).nullable();
+
 export const RecordingSchema = z.object({
   id: z.number(),
   videoId: z.string().nullable(),
+  collectionId: z.string().nullable(),
   streamUrl: z.string().nullable(),
   playerUrl: z.string().nullable(),
   sessionId: z.string(),
@@ -63,13 +83,24 @@ export const RecordingSchema = z.object({
   insights: z.string().nullable(),
   insightsStatus: InsightsStatusSchema,
   // Copilot data
-  callSummary: CallSummarySchema.optional(),
+  shortOverview: z.string().nullable().optional(),
+  keyPoints: KeyPointsSchema.optional(),
   playbookSnapshot: PlaybookSnapshotSchema.optional(),
   metricsSnapshot: MetricsSnapshotSchema.optional(),
+  // Meeting Setup data
+  meetingName: z.string().nullable().optional(),
+  meetingDescription: z.string().nullable().optional(),
+  probingQuestions: z.array(ProbingQuestionSchema).nullable().optional(),
+  meetingChecklist: z.array(z.string()).nullable().optional(),
 });
 
 export const CreateRecordingInputSchema = z.object({
   sessionId: z.string(),
+  // Meeting Setup data
+  meetingName: z.string().optional(),
+  meetingDescription: z.string().optional(),
+  probingQuestions: z.array(ProbingQuestionSchema).optional(),
+  meetingChecklist: z.array(z.string()).optional(),
 });
 
 export const StopRecordingInputSchema = z.object({
@@ -83,9 +114,12 @@ export const GetRecordingInputSchema = z.object({
 export type RecordingStatus = z.infer<typeof RecordingStatusSchema>;
 export type InsightsStatus = z.infer<typeof InsightsStatusSchema>;
 export type Recording = z.infer<typeof RecordingSchema>;
-export type CallSummary = z.infer<typeof CallSummarySchema>;
+export type KeyPoint = z.infer<typeof KeyPointSchema>;
+export type KeyPoints = z.infer<typeof KeyPointsSchema>;
 export type PlaybookSnapshot = z.infer<typeof PlaybookSnapshotSchema>;
 export type MetricsSnapshot = z.infer<typeof MetricsSnapshotSchema>;
+export type ProbingQuestion = z.infer<typeof ProbingQuestionSchema>;
+export type MeetingSetup = z.infer<typeof MeetingSetupSchema>;
 export type CreateRecordingInput = z.infer<typeof CreateRecordingInputSchema>;
 export type StopRecordingInput = z.infer<typeof StopRecordingInputSchema>;
 export type GetRecordingInput = z.infer<typeof GetRecordingInputSchema>;

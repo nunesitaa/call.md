@@ -13,6 +13,7 @@ export const users = sqliteTable('users', {
 export const recordings = sqliteTable('recordings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   videoId: text('video_id'),
+  collectionId: text('collection_id'),
   streamUrl: text('stream_url'),
   playerUrl: text('player_url'),
   sessionId: text('session_id').notNull(),
@@ -26,9 +27,15 @@ export const recordings = sqliteTable('recordings', {
     .notNull()
     .default('pending'),
   // Enhanced fields for Meeting Co-Pilot
-  callSummary: text('call_summary'), // JSON: CallSummary object
+  shortOverview: text('short_overview'), // Narrative paragraph summary
+  keyPoints: text('key_points'), // JSON: KeyPoint[] array
   playbookSnapshot: text('playbook_snapshot'), // JSON: final playbook coverage
   metricsSnapshot: text('metrics_snapshot'), // JSON: final conversation metrics
+  // Meeting Setup fields
+  meetingName: text('meeting_name'),
+  meetingDescription: text('meeting_description'),
+  probingQuestions: text('probing_questions'), // JSON: ProbingQuestion[]
+  meetingChecklist: text('meeting_checklist'), // JSON: string[]
 });
 
 // Meeting Co-Pilot Tables

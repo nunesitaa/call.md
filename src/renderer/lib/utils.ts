@@ -16,6 +16,32 @@ export function formatDuration(seconds: number): string {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
+export function formatDate(date: Date | string): string {
+  let dateStr = typeof date === 'string' ? date : date.toISOString();
+  if (typeof date === 'string' && !date.endsWith('Z') && !date.includes('+') && !date.includes('-', 10)) {
+    dateStr = date.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export function formatDurationMinutes(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMins = minutes % 60;
+  if (remainingMins === 0) {
+    return `${hours} hr`;
+  }
+  return `${hours} hr ${remainingMins} min`;
+}
+
 export function formatRelativeTime(date: Date | string): string {
   const now = new Date();
   // SQLite datetime('now') returns UTC without timezone indicator (e.g., "2024-01-15 10:00:00")

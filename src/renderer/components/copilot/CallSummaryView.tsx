@@ -1,15 +1,16 @@
 /**
  * Meeting Summary View Component
  *
- * Displays the AI-generated meeting summary as formatted markdown.
+ * Displays the post-meeting summary with:
+ * - Short Overview (narrative paragraph)
+ * - Key Discussion Points (grouped by topic)
  */
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { FileText, Copy, Check, Clock } from 'lucide-react';
+import { FileText, Copy, Check, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCopilotStore } from '../../stores/copilot.store';
 import { cn } from '../../lib/utils';
 import type { CopilotCallSummary } from '../../../shared/types/ipc.types';
@@ -25,6 +26,7 @@ export function CallSummaryView({ className, summary: propSummary, duration: pro
   const summary = propSummary || store.callSummary;
   const duration = propDuration || store.callDuration;
   const [copied, setCopied] = useState(false);
+  const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set([0])); // First topic expanded by default
 
   if (!summary) {
     return (
@@ -52,9 +54,34 @@ export function CallSummaryView({ className, summary: propSummary, duration: pro
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(summary.summary);
+    // Format summary for clipboard
+    let text = `Meeting Overview\n${'='.repeat(50)}\n${summary.shortOverview}\n\n`;
+
+    if (summary.keyPoints && summary.keyPoints.length > 0) {
+      text += `Key Discussion Points\n${'='.repeat(50)}\n`;
+      summary.keyPoints.forEach((kp) => {
+        text += `\n${kp.topic}\n${'-'.repeat(30)}\n`;
+        kp.points.forEach((point) => {
+          text += `  - ${point}\n`;
+        });
+      });
+    }
+
+    navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const toggleTopic = (index: number) => {
+    setExpandedTopics((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
   };
 
   return (
@@ -89,50 +116,55 @@ export function CallSummaryView({ className, summary: propSummary, duration: pro
         </div>
       </CardHeader>
 
-      <CardContent>
-        <div className="prose prose-sm dark:prose-invert max-w-none">
-          <ReactMarkdown
-            components={{
-              h2: ({ children }) => (
-                <h2 className="text-base font-semibold mt-4 mb-2 first:mt-0 border-b pb-1">{children}</h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-sm font-semibold mt-3 mb-1">{children}</h3>
-              ),
-              ul: ({ children }) => (
-                <ul className="list-disc list-inside space-y-1 my-2 ml-2">{children}</ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="list-decimal list-inside space-y-1 my-2 ml-2">{children}</ol>
-              ),
-              li: ({ children }) => (
-                <li className="text-sm">{children}</li>
-              ),
-              p: ({ children }) => (
-                <p className="text-sm my-2 leading-relaxed">{children}</p>
-              ),
-              // Style checkboxes in action items
-              input: ({ type, checked }) => {
-                if (type === 'checkbox') {
-                  return (
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      readOnly
-                      className="mr-2 rounded border-gray-300"
-                    />
-                  );
-                }
-                return null;
-              },
-              strong: ({ children }) => (
-                <strong className="font-semibold">{children}</strong>
-              ),
-            }}
-          >
-            {summary.summary}
-          </ReactMarkdown>
+      <CardContent className="space-y-6">
+        {/* Short Overview */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-2">Overview</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {summary.shortOverview}
+          </p>
         </div>
+
+        {/* Key Points */}
+        {summary.keyPoints && summary.keyPoints.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Key Discussion Points</h3>
+            <div className="space-y-2">
+              {summary.keyPoints.map((kp, idx) => (
+                <div key={idx} className="border rounded-lg overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-left"
+                    onClick={() => toggleTopic(idx)}
+                  >
+                    <span className="font-medium text-sm">{kp.topic}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {kp.points.length} points
+                      </Badge>
+                      {expandedTopics.has(idx) ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+                  {expandedTopics.has(idx) && (
+                    <div className="px-3 pb-3">
+                      <ul className="space-y-1.5">
+                        {kp.points.map((point, pointIdx) => (
+                          <li key={pointIdx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-muted-foreground/60 mt-1.5 text-[8px]">&#9679;</span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

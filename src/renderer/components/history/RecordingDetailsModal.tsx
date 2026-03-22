@@ -14,6 +14,8 @@ import {
   ChevronUp,
   CheckCircle2,
   MessageSquare,
+  ClipboardList,
+  HelpCircle,
 } from 'lucide-react';
 import {
   Dialog,
@@ -95,7 +97,8 @@ export function RecordingDetailsModal({
 
   const metrics = recording.metricsSnapshot;
   const playbook = recording.playbookSnapshot;
-  const callSummary = recording.callSummary;
+  const shortOverview = recording.shortOverview;
+  const keyPoints = recording.keyPoints;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -165,6 +168,69 @@ export function RecordingDetailsModal({
                   Open in Browser
                 </Button>
               </div>
+            )}
+
+            {/* Meeting Info */}
+            {recording.meetingName && (
+              <CollapsibleSection
+                title="Meeting Info"
+                icon={<FileText className="h-4 w-4" />}
+                defaultOpen={true}
+              >
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Name</p>
+                    <p className="text-sm font-semibold">{recording.meetingName}</p>
+                  </div>
+                  {recording.meetingDescription && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                      <p className="text-sm">{recording.meetingDescription}</p>
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Probing Q&A */}
+            {recording.probingQuestions && recording.probingQuestions.length > 0 && (
+              <CollapsibleSection
+                title="Pre-meeting Context"
+                icon={<HelpCircle className="h-4 w-4" />}
+                badge={`${recording.probingQuestions.length} Q&A`}
+              >
+                <div className="space-y-3 pt-2">
+                  {recording.probingQuestions.map((q, idx) => (
+                    <div key={idx} className="bg-muted/30 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground mb-1">{q.question}</p>
+                      <p className="text-sm font-medium">
+                        {q.answer}
+                        {q.customAnswer && (
+                          <span className="text-muted-foreground ml-1">+ {q.customAnswer}</span>
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Meeting Checklist */}
+            {recording.meetingChecklist && recording.meetingChecklist.length > 0 && (
+              <CollapsibleSection
+                title="Meeting Checklist"
+                icon={<ClipboardList className="h-4 w-4" />}
+                badge={`${recording.meetingChecklist.length} items`}
+              >
+                <ul className="space-y-2 pt-2">
+                  {recording.meetingChecklist.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm">
+                      <div className="w-4 h-4 rounded border border-muted-foreground/40 flex-shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleSection>
             )}
 
             {/* Conversation Metrics */}
@@ -309,81 +375,45 @@ export function RecordingDetailsModal({
               </CollapsibleSection>
             )}
 
-            {/* Meeting Summary */}
-            {callSummary && callSummary.summary && (
+            {/* Short Overview */}
+            {shortOverview && (
               <CollapsibleSection
-                title="Meeting Summary"
+                title="Meeting Overview"
                 icon={<MessageSquare className="h-4 w-4" />}
                 defaultOpen={true}
               >
-                <div className="prose prose-sm dark:prose-invert max-w-none pt-2">
-                  <ReactMarkdown
-                    components={{
-                      h2: ({ children }) => (
-                        <h2 className="text-base font-semibold mt-4 mb-2 first:mt-0 border-b pb-1">{children}</h2>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 className="text-sm font-semibold mt-3 mb-1">{children}</h3>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="list-disc list-inside space-y-1 my-2 ml-2">{children}</ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="list-decimal list-inside space-y-1 my-2 ml-2">{children}</ol>
-                      ),
-                      li: ({ children }) => <li className="text-sm">{children}</li>,
-                      p: ({ children }) => <p className="text-sm my-2">{children}</p>,
-                    }}
-                  >
-                    {callSummary.summary}
-                  </ReactMarkdown>
-                </div>
+                <p className="text-sm text-foreground leading-relaxed pt-2">
+                  {shortOverview}
+                </p>
               </CollapsibleSection>
             )}
 
-            {/* AI Insights (from VideoDB) */}
-            {recording.insightsStatus === 'ready' && recording.insights && (
+            {/* Key Points */}
+            {keyPoints && keyPoints.length > 0 && (
               <CollapsibleSection
-                title="AI Summary"
+                title="Key Discussion Points"
                 icon={<FileText className="h-4 w-4" />}
-                defaultOpen={!callSummary}
+                badge={`${keyPoints.length} topics`}
+                defaultOpen={true}
               >
-                <div className="prose prose-sm dark:prose-invert max-w-none pt-2">
-                  <ReactMarkdown
-                    components={{
-                      h2: ({ children }) => (
-                        <h2 className="text-base font-semibold mt-4 mb-2 first:mt-0">{children}</h2>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 className="text-sm font-semibold mt-3 mb-1">{children}</h3>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>
-                      ),
-                      li: ({ children }) => <li className="text-sm">{children}</li>,
-                      p: ({ children }) => <p className="text-sm my-2">{children}</p>,
-                    }}
-                  >
-                    {unwrapMarkdownCodeBlock(recording.insights)}
-                  </ReactMarkdown>
+                <div className="space-y-4 pt-2">
+                  {keyPoints.map((kp, idx) => (
+                    <div key={idx}>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">
+                        {kp.topic}
+                      </h4>
+                      <ul className="space-y-1.5 ml-1">
+                        {kp.points.map((point, pointIdx) => (
+                          <li key={pointIdx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-muted-foreground/60 mt-1.5 text-[8px]">&#9679;</span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               </CollapsibleSection>
-            )}
-
-            {recording.insightsStatus === 'processing' && (
-              <div className="bg-muted rounded-lg p-4 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Generating AI insights... This may take a moment.
-                </p>
-              </div>
-            )}
-
-            {recording.insightsStatus === 'failed' && (
-              <div className="bg-destructive/10 rounded-lg p-4 text-center">
-                <p className="text-sm text-destructive">
-                  Failed to generate insights for this recording.
-                </p>
-              </div>
             )}
           </div>
         </ScrollArea>

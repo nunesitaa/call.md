@@ -6,6 +6,7 @@ import { captureRouter } from './procedures/capture';
 import { recordingsRouter } from './procedures/recordings';
 import { transcriptionRouter } from './procedures/transcription';
 import { settingsRouter } from './procedures/settings';
+import { meetingSetupRouter } from './procedures/meeting-setup';
 
 export const appRouter = router({
   auth: authRouter,
@@ -15,6 +16,7 @@ export const appRouter = router({
   recordings: recordingsRouter,
   transcription: transcriptionRouter,
   settings: settingsRouter,
+  meetingSetup: meetingSetupRouter,
 });
 
 export type AppRouter = typeof appRouter;

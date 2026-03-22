@@ -12,7 +12,6 @@ import { connect } from 'videodb';
 import type { CaptureSessionFull } from 'videodb';
 import { createChildLogger } from '../lib/logger';
 import { updateRecordingBySessionId } from '../db';
-import { createInsightsService } from './insights.service';
 
 const logger = createChildLogger('recording-export');
 
@@ -60,14 +59,15 @@ export async function checkSessionExport(
 
 /**
  * Recover a recording that has exported on VideoDB
- * Updates the local database and triggers insights processing
+ * Updates the local database with video info
+ * Note: triggerInsights param is deprecated - summaries are now generated immediately after call ends
  */
 export async function recoverExportedRecording(
   sessionId: string,
   videoId: string,
   apiKey: string,
   apiUrl?: string,
-  triggerInsights: boolean = true
+  _triggerInsights: boolean = true // deprecated, kept for API compatibility
 ): Promise<ExportRecoveryResult> {
   try {
     const conn = connect(apiUrl ? { apiKey, baseUrl: apiUrl } : { apiKey });
@@ -86,6 +86,7 @@ export async function recoverExportedRecording(
     // Update recording in database
     const recording = updateRecordingBySessionId(sessionId, {
       videoId,
+      collectionId: video.collectionId || null,
       streamUrl: video.streamUrl || null,
       playerUrl: video.playerUrl || null,
       duration,
@@ -112,18 +113,8 @@ export async function recoverExportedRecording(
       'Recording recovered with video info'
     );
 
-    // Trigger insights processing (fire and forget)
-    if (triggerInsights) {
-      const insightsService = createInsightsService(apiKey, apiUrl);
-      insightsService
-        .processRecording(recording.id, videoId)
-        .then((result) => {
-          logger.info({ recordingId: recording.id, result }, 'Insights processing completed');
-        })
-        .catch((err) => {
-          logger.error({ error: err, recordingId: recording.id }, 'Insights processing failed');
-        });
-    }
+    // Note: Insights/summaries are now generated immediately after call ends
+    // via the SummaryGeneratorService, so we skip VideoDB insights processing
 
     return {
       success: true,

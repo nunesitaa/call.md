@@ -11,6 +11,7 @@ import { logger } from '../../lib/logger';
 import { initLLMService } from '../llm.service';
 import {
   updateRecording,
+  getRecordingById,
   createCallMetricsSnapshot,
   createNudge,
 } from '../../db';
@@ -42,7 +43,7 @@ import {
 import {
   SummaryGeneratorService,
   getSummaryGenerator,
-  type CallSummary,
+  type PostMeetingSummary,
 } from './summary-generator.service';
 
 // MCP Services
@@ -78,7 +79,7 @@ export interface CopilotEvents {
   'metrics-update': { metrics: ConversationMetrics; health: number };
   'nudge': { nudge: Nudge };
   'call-ended': {
-    summary: CallSummary;
+    summary: PostMeetingSummary;
     metrics: ConversationMetrics;
     duration: number;
   };
@@ -507,7 +508,7 @@ export class MeetingCopilotService extends EventEmitter {
   /**
    * End call and generate summary
    */
-  async endCall(): Promise<CallSummary | null> {
+  async endCall(): Promise<PostMeetingSummary | null> {
     if (!this.callState) {
       log.warn('No active call to end');
       return null;
@@ -531,38 +532,54 @@ export class MeetingCopilotService extends EventEmitter {
     // Mark call as inactive
     this.callState.isActive = false;
 
-    // Get final segments
+    // Get final segments for metrics calculation
     const segments = this.transcriptBuffer.getFinalSegments(sessionId);
 
     // Calculate final metrics
     const metrics = this.metricsService.calculate(segments, duration);
 
-    // Generate summary
-    let summary: CallSummary;
+    // Fetch meeting context from recording
+    const recording = getRecordingById(recordingId);
+    const meetingContext = {
+      meetingName: (recording as any)?.meetingName || undefined,
+      meetingDescription: (recording as any)?.meetingDescription || undefined,
+      probingQuestions: (recording as any)?.probingQuestions
+        ? JSON.parse((recording as any).probingQuestions)
+        : undefined,
+      checklist: (recording as any)?.meetingChecklist
+        ? JSON.parse((recording as any).meetingChecklist)
+        : undefined,
+    };
+
+    // Generate summaries (fetches full transcript from DB)
+    let summary: PostMeetingSummary;
     try {
       log.info({ recordingId, segmentCount: segments.length }, 'Starting summary generation');
       const summaryStartTime = Date.now();
-      summary = await this.summaryGenerator.generate(segments);
+      summary = await this.summaryGenerator.generate(recordingId, meetingContext);
       const summaryElapsed = Date.now() - summaryStartTime;
       log.info({
         recordingId,
         elapsedMs: summaryElapsed,
-        summaryLength: summary.summary.length,
+        overviewLength: summary.shortOverview.length,
+        keyPointsCount: summary.keyPoints.length,
       }, 'Summary generation completed');
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
       log.error({ err: error, errorMessage: errMsg, recordingId }, 'Failed to generate summary');
       summary = {
-        summary: `## Meeting Summary\n\nSummary generation failed: ${errMsg}`,
+        shortOverview: `Summary generation failed: ${errMsg}`,
+        keyPoints: [],
         generatedAt: Date.now(),
       };
     }
 
     // Save to database
     try {
-      log.info({ recordingId, hasSummary: summary.summary.length > 0 }, 'Saving call data to database');
+      log.info({ recordingId, hasOverview: summary.shortOverview.length > 0 }, 'Saving call data to database');
       updateRecording(recordingId, {
-        callSummary: JSON.stringify(summary),
+        shortOverview: summary.shortOverview,
+        keyPoints: JSON.stringify(summary.keyPoints),
         metricsSnapshot: JSON.stringify(metrics),
         duration: Math.round(duration),
       });
@@ -573,7 +590,7 @@ export class MeetingCopilotService extends EventEmitter {
     }
 
     // Emit end event
-    log.info({ recordingId, hasSummary: summary.summary.length > 0 }, 'Emitting call-ended event');
+    log.info({ recordingId, hasOverview: summary.shortOverview.length > 0 }, 'Emitting call-ended event');
     this.emit('call-ended', {
       summary,
       metrics,

@@ -196,6 +196,20 @@ ${transcriptText}`;
     return generatedText.trim();
   }
 
+  async downloadVideo(videoId: string, name?: string): Promise<{ downloadUrl: string; name: string }> {
+    logger.info({ videoId, name }, 'Getting video download URL');
+    const video = await this.getVideo(videoId);
+    logger.info({ videoId, streamUrl: video.streamUrl }, 'Got video object');
+
+    const result = await video.download(name);
+    logger.info({ videoId, result }, 'Download API response');
+
+    return {
+      downloadUrl: result.downloadUrl as string,
+      name: result.name as string,
+    };
+  }
+
   static clearCache(): void {
     cachedConnection = null;
     logger.info('VideoDB connection cache cleared');

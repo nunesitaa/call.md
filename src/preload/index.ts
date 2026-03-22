@@ -80,8 +80,14 @@ export interface CopilotPlaybookSnapshot {
   recommendations: string[];
 }
 
+export interface CopilotKeyPoint {
+  topic: string;
+  points: string[];
+}
+
 export interface CopilotCallSummary {
-  summary: string;
+  shortOverview: string;
+  keyPoints: CopilotKeyPoint[];
   generatedAt: number;
 }
 

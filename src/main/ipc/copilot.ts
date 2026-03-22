@@ -12,7 +12,7 @@ import {
   type CopilotConfig,
   type ConversationMetrics,
   type Nudge,
-  type CallSummary,
+  type PostMeetingSummary,
 } from '../services/copilot';
 
 const logger = createChildLogger('copilot-ipc');
@@ -57,7 +57,7 @@ export function setupCopilotHandlers(): void {
   });
 
   copilot.on('call-ended', (data: {
-    summary: CallSummary;
+    summary: PostMeetingSummary;
     metrics: ConversationMetrics;
     duration: number;
   }) => {
