@@ -1,133 +1,139 @@
 import React from 'react';
-import { Play, Clock, FileText, Loader2 } from 'lucide-react';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
+import { Calendar, Clock, CheckCircle2, AlertTriangle, Loader2, Circle } from 'lucide-react';
 import type { Recording } from '../../../shared/schemas/recording.schema';
-import { formatDuration, formatRelativeTime, stripMarkdown } from '../../lib/utils';
-import { getElectronAPI } from '../../api/ipc';
+import { formatDate, formatDurationMinutes, stripMarkdown, cn } from '../../lib/utils';
 
 interface RecordingCardProps {
   recording: Recording;
-  onViewDetails: () => void;
+  onClick: () => void;
 }
 
-export function RecordingCard({ recording, onViewDetails }: RecordingCardProps) {
-  const handlePlay = async () => {
-    const api = getElectronAPI();
-    if (recording.playerUrl && api) {
-      await api.app.openPlayerWindow(recording.playerUrl);
-    }
-  };
+type RecordingStatus = 'recording' | 'processing' | 'available' | 'failed';
 
-  const getStatusBadge = () => {
-    switch (recording.status) {
-      case 'recording':
-        return <Badge variant="destructive">Recording</Badge>;
-      case 'processing':
-        return (
-          <Badge variant="warning" className="gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Processing
-          </Badge>
-        );
-      case 'available':
-        return <Badge variant="success">Ready</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return null;
-    }
-  };
+interface StatusConfig {
+  label: string;
+  bgColor: string;
+  hoverBg: string;
+  hoverBorder: string;
+  icon: React.ReactNode;
+}
 
-  const getSummaryBadge = () => {
-    // Prioritize call summary over insights
-    if (recording.callSummary?.bullets && recording.callSummary.bullets.length > 0) {
-      return <Badge variant="default">Summary ready</Badge>;
-    }
+const statusConfigs: Record<RecordingStatus, StatusConfig> = {
+  recording: {
+    label: 'Recording',
+    bgColor: 'bg-[#3b82f6]',
+    hoverBg: 'hover:bg-[#eff6ff]',
+    hoverBorder: 'hover:border-[#93c5fd]',
+    icon: <Circle className="h-4 w-4 fill-current" />,
+  },
+  processing: {
+    label: 'Processing',
+    bgColor: 'bg-[#eab308]',
+    hoverBg: 'hover:bg-[#fefce8]',
+    hoverBorder: 'hover:border-[#fde047]',
+    icon: <Loader2 className="h-4 w-4 animate-spin" />,
+  },
+  available: {
+    label: 'Done',
+    bgColor: 'bg-[#559e58]',
+    hoverBg: 'hover:bg-[#f0fdf4]',
+    hoverBorder: 'hover:border-[#86efac]',
+    icon: <CheckCircle2 className="h-4 w-4" />,
+  },
+  failed: {
+    label: 'Error',
+    bgColor: 'bg-[#ef4444]',
+    hoverBg: 'hover:bg-[#fef2f2]',
+    hoverBorder: 'hover:border-[#fca5a5]',
+    icon: <AlertTriangle className="h-4 w-4" />,
+  },
+};
 
-    if (recording.status !== 'available') return null;
-
-    switch (recording.insightsStatus) {
-      case 'pending':
-        return <Badge variant="secondary">Insights pending</Badge>;
-      case 'processing':
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Generating insights
-          </Badge>
-        );
-      case 'ready':
-        return <Badge variant="outline">Insights ready</Badge>;
-      case 'failed':
-        return <Badge variant="outline">Insights failed</Badge>;
-      default:
-        return null;
-    }
-  };
+function StatusBadge({ status }: { status: RecordingStatus }) {
+  const config = statusConfigs[status] || statusConfigs.available;
 
   return (
-    <Card className="hover:bg-muted/50 transition-colors">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              {getStatusBadge()}
-              {getSummaryBadge()}
-            </div>
+    <div
+      className={cn(
+        'inline-flex w-fit items-center gap-[4px] pl-[6px] pr-[8px] py-[4px] rounded-[36px] text-white text-[13px] font-medium leading-[1.5]',
+        config.bgColor
+      )}
+    >
+      {config.icon}
+      <span>{config.label}</span>
+    </div>
+  );
+}
 
-            <p className="text-sm font-medium truncate">
-              Session: {recording.sessionId.slice(0, 20)}...
-            </p>
+export function RecordingCard({ recording, onClick }: RecordingCardProps) {
+  const config = statusConfigs[recording.status] || statusConfigs.available;
 
-            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {formatRelativeTime(recording.createdAt)}
+  // Get the title - prefer meetingName, fallback to date-based title
+  const title = recording.meetingName || `Recording - ${formatDate(recording.createdAt)}`;
+
+  // Get the description - prefer shortOverview, fallback to insights
+  const getDescription = (): string => {
+    if (recording.shortOverview) {
+      return recording.shortOverview;
+    }
+    if (recording.insights) {
+      return stripMarkdown(recording.insights);
+    }
+    if (recording.meetingDescription) {
+      return recording.meetingDescription;
+    }
+    return 'No summary available yet.';
+  };
+
+  const description = getDescription();
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'bg-[#f7f7f7] border border-[#efefef] rounded-[16px] pt-[20px] pb-[24px] px-[20px] cursor-pointer',
+        'transition-all duration-200',
+        'flex flex-col gap-[20px]',
+        config.hoverBg,
+        config.hoverBorder
+      )}
+    >
+      {/* Header Section */}
+      <div className="flex flex-col gap-[10px]">
+        {/* Status Badge */}
+        <StatusBadge status={recording.status} />
+
+        {/* Title */}
+        <h3 className="text-[18px] font-medium text-black tracking-[0.09px] line-clamp-1">
+          {title}
+        </h3>
+
+        {/* Metadata Row */}
+        <div className="flex items-center gap-[20px]">
+          {/* Date */}
+          <div className="flex items-center gap-[4px]">
+            <Calendar className="h-4 w-4 text-[#969696]" />
+            <span className="text-[13px] text-[#464646] tracking-[0.065px]">
+              {formatDate(recording.createdAt)}
+            </span>
+          </div>
+
+          {/* Duration */}
+          {recording.duration && (
+            <div className="flex items-center gap-[8px]">
+              <Clock className="h-4 w-4 text-[#969696]" />
+              <span className="text-[13px] text-[#464646] tracking-[0.065px]">
+                {formatDurationMinutes(recording.duration)}
               </span>
-              {recording.duration && (
-                <span className="flex items-center gap-1">
-                  <FileText className="h-3 w-3" />
-                  {formatDuration(recording.duration)}
-                </span>
-              )}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {recording.status === 'available' && recording.playerUrl && (
-              <Button size="sm" variant="outline" onClick={handlePlay}>
-                <Play className="h-4 w-4 mr-1" />
-                Play
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={onViewDetails}>
-              Details
-            </Button>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Call Summary preview (prioritized) */}
-        {recording.callSummary?.bullets && recording.callSummary.bullets.length > 0 && (
-          <div className="mt-3 pt-3 border-t">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Call Summary</p>
-            <ul className="text-sm space-y-0.5">
-              {recording.callSummary.bullets.slice(0, 2).map((bullet, i) => (
-                <li key={i} className="line-clamp-1">• {bullet}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Fallback to insights if no call summary */}
-        {!recording.callSummary?.bullets?.length && recording.insightsStatus === 'ready' && recording.insights && (
-          <div className="mt-3 pt-3 border-t">
-            <p className="text-xs font-medium text-muted-foreground mb-1">AI Summary</p>
-            <p className="text-sm line-clamp-2">{stripMarkdown(recording.insights)}</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* Description */}
+      <p className="text-[13px] text-[#2d2d2d] leading-[18px] tracking-[0.065px] line-clamp-4">
+        {description}
+      </p>
+    </div>
   );
 }

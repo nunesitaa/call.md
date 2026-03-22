@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, Inbox, Trash2 } from 'lucide-react';
-import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
+import React, { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, Inbox, Search } from 'lucide-react';
 import { RecordingCard } from './RecordingCard';
-import { RecordingDetailsModal } from './RecordingDetailsModal';
+import { RecordingDetailPage } from './RecordingDetailPage';
 import { trpc } from '../../api/trpc';
 import type { Recording } from '../../../shared/schemas/recording.schema';
 
 export function HistoryView() {
-  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
+  const [selectedRecordingId, setSelectedRecordingId] = useState<number | null>(null);
   const [hasCleanedUp, setHasCleanedUp] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: recordings, isLoading, refetch, isRefetching } = trpc.recordings.list.useQuery(
+  const { data: recordings, isLoading, refetch } = trpc.recordings.list.useQuery(
     undefined,
     {
       refetchInterval: 10000,
@@ -40,75 +39,100 @@ export function HistoryView() {
     }
   }, [recordings, hasCleanedUp]);
 
-  const sortedRecordings = [...(recordings || [])].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  // Sort recordings by date (newest first) and filter by search query
+  const filteredRecordings = useMemo(() => {
+    const sorted = [...(recordings || [])].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
+    if (!searchQuery.trim()) {
+      return sorted;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return sorted.filter((recording) => {
+      // Search in meeting name
+      if (recording.meetingName?.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Search in short overview
+      if (recording.shortOverview?.toLowerCase().includes(query)) {
+        return true;
+      }
+      return false;
+    });
+  }, [recordings, searchQuery]);
+
+  // If a recording is selected, show the detail page
+  if (selectedRecordingId !== null) {
+    return (
+      <RecordingDetailPage
+        recordingId={selectedRecordingId}
+        onBack={() => setSelectedRecordingId(null)}
+      />
+    );
+  }
+
+  // Show the recordings grid
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold">Recording History</h2>
-          <p className="text-sm text-muted-foreground">
-            {recordings?.length || 0} recording{recordings?.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {recordings && recordings.some(r => r.status === 'processing' || r.status === 'recording') && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => cleanupMutation.mutate({ maxAgeMinutes: 30 })}
-              disabled={cleanupMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clean Stale
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isRefetching}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+      <div className="px-8 pt-8 pb-6">
+        <h1 className="text-[28px] font-semibold text-black tracking-tight">
+          Meeting Recordings
+        </h1>
+        <p className="text-[15px] text-[#6b6b6b] mt-1">
+          View and manage your past meeting recordings
+        </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="px-8 pb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-[#969696]" />
+          <input
+            type="text"
+            placeholder="Search recordings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-11 pl-11 pr-4 rounded-xl border border-[#e0e0e0] bg-[#fafafa] text-[14px] text-black placeholder:text-[#969696] focus:outline-none focus:border-[#c0c0c0] focus:bg-white transition-colors"
+          />
         </div>
       </div>
 
-      {/* Recordings List */}
-      <ScrollArea className="flex-1">
+      {/* Recording Cards Grid */}
+      <div className="flex-1 overflow-y-auto px-8 pb-8">
         {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center h-48">
+            <RefreshCw className="h-6 w-6 animate-spin text-[#969696]" />
           </div>
-        ) : sortedRecordings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-            <Inbox className="h-10 w-10 mb-2" />
-            <p className="text-sm">No recordings yet</p>
-            <p className="text-xs">Start a recording to see it here</p>
+        ) : filteredRecordings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 text-[#6b6b6b]">
+            <Inbox className="h-12 w-12 mb-3 text-[#c0c0c0]" />
+            {searchQuery ? (
+              <>
+                <p className="text-[15px] font-medium">No matching recordings</p>
+                <p className="text-[13px] text-[#969696] mt-1">Try a different search term</p>
+              </>
+            ) : (
+              <>
+                <p className="text-[15px] font-medium">No recordings yet</p>
+                <p className="text-[13px] text-[#969696] mt-1">Start a recording to see it here</p>
+              </>
+            )}
           </div>
         ) : (
-          <div className="space-y-3 pr-4">
-            {sortedRecordings.map((recording) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredRecordings.map((recording) => (
               <RecordingCard
                 key={recording.id}
                 recording={recording}
-                onViewDetails={() => setSelectedRecording(recording)}
+                onClick={() => setSelectedRecordingId(recording.id)}
               />
             ))}
           </div>
         )}
-      </ScrollArea>
-
-      {/* Details Modal */}
-      <RecordingDetailsModal
-        recording={selectedRecording}
-        open={!!selectedRecording}
-        onOpenChange={(open) => !open && setSelectedRecording(null)}
-      />
+      </div>
     </div>
   );
 }

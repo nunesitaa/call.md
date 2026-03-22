@@ -5,10 +5,11 @@ import {
   CreateRecordingInputSchema,
   StopRecordingInputSchema,
   GetRecordingInputSchema,
-  CallSummarySchema,
+  KeyPointsSchema,
   PlaybookSnapshotSchema,
   MetricsSnapshotSchema,
-  type CallSummary,
+  ProbingQuestionSchema,
+  type KeyPoints,
   type PlaybookSnapshot,
   type MetricsSnapshot,
 } from '../../../../shared/schemas/recording.schema';
@@ -17,10 +18,12 @@ import {
   createRecording,
   updateRecordingBySessionId,
   getRecordingById,
+  getTranscriptSegmentsByRecording,
 } from '../../../db';
 import { createChildLogger } from '../../../lib/logger';
 import { loadRuntimeConfig } from '../../../lib/config';
 import { checkAndRecoverSession } from '../../../services/recording-export.service';
+import { createVideoDBService } from '../../../services/videodb.service';
 
 const logger = createChildLogger('recordings-procedure');
 
@@ -43,9 +46,20 @@ function safeJsonParse<T>(
 function toApiRecording(dbRecording: ReturnType<typeof getRecordingById>) {
   if (!dbRecording) return null;
 
+  // Parse meeting setup data
+  const probingQuestions = safeJsonParse(
+    (dbRecording as any).probingQuestions,
+    z.array(ProbingQuestionSchema)
+  );
+  const meetingChecklist = safeJsonParse(
+    (dbRecording as any).meetingChecklist,
+    z.array(z.string())
+  );
+
   return {
     id: dbRecording.id,
     videoId: dbRecording.videoId,
+    collectionId: (dbRecording as any).collectionId || null,
     streamUrl: dbRecording.streamUrl,
     playerUrl: dbRecording.playerUrl,
     sessionId: dbRecording.sessionId,
@@ -54,10 +68,16 @@ function toApiRecording(dbRecording: ReturnType<typeof getRecordingById>) {
     status: dbRecording.status as 'recording' | 'processing' | 'available' | 'failed',
     insights: dbRecording.insights,
     insightsStatus: dbRecording.insightsStatus as 'pending' | 'processing' | 'ready' | 'failed',
-    // Parse and validate copilot data from JSON strings
-    callSummary: safeJsonParse<CallSummary>(dbRecording.callSummary, CallSummarySchema),
+    // Parse and validate copilot data
+    shortOverview: (dbRecording as any).shortOverview || null,
+    keyPoints: safeJsonParse<KeyPoints>((dbRecording as any).keyPoints, KeyPointsSchema),
     playbookSnapshot: safeJsonParse<PlaybookSnapshot>(dbRecording.playbookSnapshot, PlaybookSnapshotSchema),
     metricsSnapshot: safeJsonParse<MetricsSnapshot>(dbRecording.metricsSnapshot, MetricsSnapshotSchema),
+    // Meeting Setup data
+    meetingName: (dbRecording as any).meetingName || null,
+    meetingDescription: (dbRecording as any).meetingDescription || null,
+    probingQuestions: probingQuestions || null,
+    meetingChecklist: meetingChecklist || null,
   };
 }
 
@@ -89,16 +109,53 @@ export const recordingsRouter = router({
       return toApiRecording(recording);
     }),
 
+  getTranscript: protectedProcedure
+    .input(z.object({ recordingId: z.number() }))
+    .output(z.array(z.object({
+      id: z.string(),
+      channel: z.enum(['me', 'them']),
+      text: z.string(),
+      startTime: z.number(),
+      endTime: z.number(),
+    })))
+    .query(async ({ input }) => {
+      logger.debug({ recordingId: input.recordingId }, 'Fetching transcript');
+      const segments = getTranscriptSegmentsByRecording(input.recordingId);
+      return segments.map(s => ({
+        id: s.id,
+        channel: s.channel as 'me' | 'them',
+        text: s.text,
+        startTime: s.startTime,
+        endTime: s.endTime,
+      }));
+    }),
+
   start: protectedProcedure
     .input(CreateRecordingInputSchema)
     .output(RecordingSchema)
     .mutation(async ({ input }) => {
-      logger.info({ sessionId: input.sessionId }, 'Starting recording');
+      logger.info({ sessionId: input.sessionId, hasMeetingSetup: !!input.meetingName }, 'Starting recording');
 
-      const recording = createRecording({
+      const recordingData: any = {
         sessionId: input.sessionId,
         status: 'recording',
-      });
+      };
+
+      // Add meeting setup data if provided
+      if (input.meetingName) {
+        recordingData.meetingName = input.meetingName;
+      }
+      if (input.meetingDescription) {
+        recordingData.meetingDescription = input.meetingDescription;
+      }
+      if (input.probingQuestions) {
+        recordingData.probingQuestions = JSON.stringify(input.probingQuestions);
+      }
+      if (input.meetingChecklist) {
+        recordingData.meetingChecklist = JSON.stringify(input.meetingChecklist);
+      }
+
+      const recording = createRecording(recordingData);
 
       logger.info(
         { recordingId: recording.id, sessionId: input.sessionId },
@@ -197,7 +254,7 @@ export const recordingsRouter = router({
       // Mark truly stale recordings as failed
       const updatedRecordings = getAllRecordings();
       for (const recording of updatedRecordings) {
-        if ((recording.status === 'processing' || recording.status === 'recording') && !recording.callSummary) {
+        if ((recording.status === 'processing' || recording.status === 'recording') && !(recording as any).shortOverview) {
           const createdAt = new Date(recording.createdAt).getTime();
           const age = now - createdAt;
 
@@ -214,5 +271,71 @@ export const recordingsRouter = router({
 
       logger.info({ cleaned, recovered }, 'Stale recordings cleanup complete');
       return { cleaned, recovered };
+    }),
+
+  downloadVideo: protectedProcedure
+    .input(z.object({ recordingId: z.number() }))
+    .output(z.object({ downloadUrl: z.string(), name: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      logger.debug({ recordingId: input.recordingId }, 'Getting video download URL');
+
+      const recording = getRecordingById(input.recordingId);
+      if (!recording || !recording.videoId) {
+        throw new Error('Recording or video not found');
+      }
+
+      const apiKey = ctx.user?.apiKey;
+      if (!apiKey) {
+        throw new Error('API key not found');
+      }
+
+      try {
+        const runtimeConfig = loadRuntimeConfig();
+        const service = createVideoDBService(apiKey, runtimeConfig.apiUrl);
+        const result = await service.downloadVideo(recording.videoId, recording.meetingName || undefined);
+        logger.info({ recordingId: input.recordingId, result }, 'Video download URL obtained');
+        return result;
+      } catch (error) {
+        logger.error({ recordingId: input.recordingId, error }, 'Failed to get video download URL');
+        throw error;
+      }
+    }),
+
+  // Populate collectionId for recordings that don't have it
+  populateCollectionId: protectedProcedure
+    .input(z.object({ recordingId: z.number() }))
+    .output(z.object({ collectionId: z.string().nullable() }))
+    .mutation(async ({ input, ctx }) => {
+      const recording = getRecordingById(input.recordingId);
+      if (!recording || !recording.videoId) {
+        return { collectionId: null };
+      }
+
+      // Already has collectionId
+      if ((recording as any).collectionId) {
+        return { collectionId: (recording as any).collectionId };
+      }
+
+      const apiKey = ctx.user?.apiKey;
+      if (!apiKey) {
+        return { collectionId: null };
+      }
+
+      try {
+        const runtimeConfig = loadRuntimeConfig();
+        const service = createVideoDBService(apiKey, runtimeConfig.apiUrl);
+        const video = await service.getVideo(recording.videoId);
+        const collectionId = video.collectionId || null;
+
+        if (collectionId) {
+          updateRecordingBySessionId(recording.sessionId, { collectionId });
+          logger.info({ recordingId: input.recordingId, collectionId }, 'Populated collectionId for recording');
+        }
+
+        return { collectionId };
+      } catch (error) {
+        logger.error({ error, recordingId: input.recordingId }, 'Failed to fetch collectionId');
+        return { collectionId: null };
+      }
     }),
 });

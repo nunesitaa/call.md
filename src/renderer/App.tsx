@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
-import { MainContent } from './components/layout/MainContent';
 import { AuthView } from './components/auth/AuthView';
-import { StreamToggles } from './components/recording/StreamToggles';
 import { TopStatusBar } from './components/recording/TopStatusBar';
 import { TranscriptionPanel } from './components/transcription/TranscriptionPanel';
 import { HistoryView } from './components/history/HistoryView';
@@ -14,23 +12,16 @@ import { useGlobalRecorderEvents } from './hooks/useGlobalRecorderEvents';
 import { useCopilot } from './hooks/useCopilot';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Button } from './components/ui/button';
-import { Badge } from './components/ui/badge';
 import { ErrorToast } from './components/ui/error-toast';
-import { AlertCircle, Shield, BookOpen, X, Mic, Users, Gauge, Loader2 } from 'lucide-react';
+import { AlertCircle, Shield, Loader2 } from 'lucide-react';
 import {
-  CueCardOverlay,
-  PlaybookPanel,
   NudgeToast,
-  SentimentIndicator,
   CallSummaryView,
 } from './components/copilot';
-import { MCPResultsOverlay } from './components/mcp';
 import { useCopilotStore } from './stores/copilot.store';
-import { CueCardEditor } from './components/settings/CueCardEditor';
-import { PlaybookEditor } from './components/settings/PlaybookEditor';
-import { PromptsEditor } from './components/settings/PromptsEditor';
+import { useMeetingSetupStore } from './stores/meeting-setup.store';
 import { MCPServersPanel } from './components/settings/MCPServersPanel';
-import { cn } from './lib/utils';
+import { MeetingSetupFlow, MeetingInfoPanel } from './components/meeting-setup';
 
 type Tab = 'recording' | 'history' | 'settings';
 
@@ -93,141 +84,22 @@ function PermissionsView() {
   );
 }
 
-function PlaybookModal({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200 p-8"
-      onClick={onClose}
-    >
-      <Card
-        className="w-full max-w-2xl max-h-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <CardHeader className="border-b flex flex-row items-center justify-between shrink-0">
-          <div>
-            <CardTitle>Playbook Progress</CardTitle>
-            <CardDescription>Track your discovery progress</CardDescription>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
-        </CardHeader>
-        <CardContent className="p-4 flex-1 overflow-hidden min-h-0">
-          <PlaybookPanel className="h-full" />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function MetricsSidebar() {
-  const { metrics, healthScore, isCallActive } = useCopilotStore();
-
-  if (!isCallActive || !metrics) {
-    return null;
-  }
-
-  const mePercent = Math.round(metrics.talkRatio.me * 100);
-  const themPercent = Math.round(metrics.talkRatio.them * 100);
-
-  const getHealthColor = () => {
-    if (healthScore >= 80) return 'text-green-500';
-    if (healthScore >= 60) return 'text-amber-500';
-    return 'text-red-500';
-  };
-
-  const getHealthLabel = () => {
-    if (healthScore >= 80) return 'Great';
-    if (healthScore >= 60) return 'Good';
-    if (healthScore >= 40) return 'Fair';
-    return 'Needs Work';
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Gauge className="h-4 w-4" />
-            Conversation Metrics
-          </CardTitle>
-          <Badge variant="outline" className="text-xs">
-            {Math.floor(metrics.callDuration / 60)}:{String(Math.floor(metrics.callDuration % 60)).padStart(2, '0')}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Health Score */}
-        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-muted/50 to-muted rounded-lg">
-          <div>
-            <p className="text-sm font-medium">Conversation Health</p>
-            <p className="text-xs text-muted-foreground">{getHealthLabel()}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={cn('text-3xl font-bold', getHealthColor())}>{healthScore}</div>
-            <span className="text-sm text-muted-foreground">/100</span>
-          </div>
-        </div>
-
-        {/* Talk Ratio */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2">Talk Ratio</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Mic className="h-3 w-3" />
-                You: {mePercent}%
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                Them: {themPercent}%
-              </span>
-            </div>
-            <div className="h-3 flex rounded-full overflow-hidden bg-muted">
-              <div
-                className={cn(
-                  'transition-all duration-500',
-                  mePercent > 65 ? 'bg-amber-500' : mePercent >= 35 ? 'bg-green-500' : 'bg-blue-500'
-                )}
-                style={{ width: `${mePercent}%` }}
-              />
-              <div className="bg-slate-400 transition-all duration-500" style={{ width: `${themPercent}%` }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Speaking Pace */}
-        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-          <div className="flex items-center gap-2">
-            <Gauge className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">Speaking Pace</span>
-          </div>
-          <span className={cn('text-lg font-semibold', metrics.pace > 180 ? 'text-amber-500' : '')}>
-            {metrics.pace} WPM
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function RecordingView() {
-  const [showPlaybookModal, setShowPlaybookModal] = useState(false);
-  const { isCallActive, callSummary, playbook } = useCopilotStore();
-  const { status, streams, toggleStream, isStarting, isStopping } = useSession();
+  const { isCallActive, callSummary } = useCopilotStore();
+  const { status } = useSession();
+  const meetingSetupStore = useMeetingSetupStore();
 
   const isRecording = status === 'recording';
   const isProcessing = status === 'processing' || status === 'stopping';
+  const isIdle = status === 'idle';
 
   useCopilot();
+
+  // Reset meeting setup when starting a new call
+  const handleStartNewCall = () => {
+    useCopilotStore.getState().reset();
+    meetingSetupStore.reset();
+  };
 
   // Show call summary view if call ended and summary available
   if (callSummary && !isCallActive) {
@@ -238,7 +110,7 @@ function RecordingView() {
           <div className="max-w-4xl mx-auto h-full flex flex-col">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-lg font-semibold">Call Complete</h2>
-              <Button variant="outline" size="sm" onClick={() => useCopilotStore.getState().reset()}>
+              <Button variant="outline" size="sm" onClick={handleStartNewCall}>
                 Start New Call
               </Button>
             </div>
@@ -273,6 +145,19 @@ function RecordingView() {
     );
   }
 
+  // Show meeting setup flow when idle (not recording)
+  if (isIdle) {
+    return (
+      <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+        <TopStatusBar />
+        <div className="flex-1 flex items-center justify-center overflow-auto py-8">
+          <MeetingSetupFlow />
+        </div>
+      </div>
+    );
+  }
+
+  // Show recording view with transcription and meeting info
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Top Status Bar */}
@@ -281,81 +166,29 @@ function RecordingView() {
       {/* Main Content Area */}
       <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         {/* Left Column - Transcription */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0">
-          {/* Stream Toggles (only show when not recording) */}
-          {!isRecording && (
-            <Card className="shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Recording Sources</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <StreamToggles
-                  streams={streams}
-                  onToggle={toggleStream}
-                  disabled={isStarting || isStopping}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Transcription Panel */}
+        <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 min-h-0">
             <TranscriptionPanel />
           </div>
         </div>
 
-        {/* Right Column - Assistance + Metrics */}
-        <div className="w-96 flex flex-col gap-4 shrink-0 overflow-hidden">
-          {/* Scrollable container for right panel */}
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            {/* MCP Results Overlay - Shows tool call results */}
-            <MCPResultsOverlay />
-
-            {/* Cue Card Overlay */}
-            <CueCardOverlay />
-
-            {/* Sentiment Indicator */}
-            <SentimentIndicator />
-
-            {/* Metrics Sidebar */}
-            <MetricsSidebar />
-          </div>
+        {/* Right Column - Meeting Info Panel */}
+        <div className="w-80 flex flex-col shrink-0 overflow-hidden">
+          <MeetingInfoPanel />
         </div>
       </div>
-
-      {/* Floating Playbook Button */}
-      {isCallActive && playbook && (
-        <button
-          onClick={() => setShowPlaybookModal(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center text-white z-40"
-          title="View Playbook Progress"
-        >
-          <BookOpen className="w-6 h-6" />
-          {playbook.coveragePercentage < 70 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center font-bold">
-              {playbook.missing}
-            </span>
-          )}
-        </button>
-      )}
-
-      {/* Playbook Modal */}
-      <PlaybookModal isOpen={showPlaybookModal} onClose={() => setShowPlaybookModal(false)} />
     </div>
   );
 }
 
 function SettingsView() {
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    'account' | 'cueCards' | 'playbooks' | 'prompts' | 'mcpServers'
+    'account' | 'mcpServers'
   >('account');
   const configStore = useConfigStore();
 
   const settingsTabs = [
     { id: 'account' as const, label: 'Account' },
-    { id: 'cueCards' as const, label: 'Cue Cards' },
-    { id: 'playbooks' as const, label: 'Playbooks' },
-    { id: 'prompts' as const, label: 'AI Settings' },
     { id: 'mcpServers' as const, label: 'MCP Servers' },
   ];
 
@@ -414,9 +247,6 @@ function SettingsView() {
           </div>
         )}
 
-        {activeSettingsTab === 'cueCards' && <CueCardEditor />}
-        {activeSettingsTab === 'playbooks' && <PlaybookEditor />}
-        {activeSettingsTab === 'prompts' && <PromptsEditor />}
         {activeSettingsTab === 'mcpServers' && <MCPServersPanel />}
       </div>
     </div>
@@ -438,17 +268,6 @@ export function App() {
   // Handle clearing session errors
   const handleDismissError = () => {
     sessionStore.setError(null);
-  };
-
-  const getTitle = () => {
-    switch (activeTab) {
-      case 'recording':
-        return 'Recording';
-      case 'history':
-        return 'History';
-      case 'settings':
-        return 'Settings';
-    }
   };
 
   const renderContent = () => {
@@ -478,36 +297,6 @@ export function App() {
     }
   };
 
-  // Special layout for recording view - no MainContent header
-  if (isAuthenticated && activeTab === 'recording' && allGranted && !permissionsLoading) {
-    return (
-      <div className="flex flex-col h-screen bg-background">
-        {/* Shared titlebar for macOS traffic lights */}
-        <div className="h-12 flex items-center justify-center border-b bg-background/80 backdrop-blur-lg shrink-0 drag-region relative">
-          {/* Space for traffic lights (absolute so title can center) */}
-          <div className="absolute left-0 w-20 shrink-0" />
-          <span className="text-sm font-medium text-muted-foreground">Meeting Copilot</span>
-        </div>
-
-        {/* Main layout below titlebar */}
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-          <div className="flex-1 overflow-hidden">
-            <RecordingView />
-          </div>
-        </div>
-
-        {/* Global Copilot Components */}
-        <NudgeToast position="bottom" />
-        <ErrorToast
-          message={sessionStore.error}
-          onDismiss={handleDismissError}
-          position="bottom"
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Shared titlebar for macOS traffic lights */}
@@ -520,7 +309,7 @@ export function App() {
       {/* Main layout below titlebar */}
       <div className="flex flex-1 overflow-hidden">
         {isAuthenticated && <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />}
-        <MainContent title={getTitle()}>{renderContent()}</MainContent>
+        <div className="flex-1 overflow-hidden">{renderContent()}</div>
       </div>
 
       {/* Global Copilot Components */}

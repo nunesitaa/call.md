@@ -1,34 +1,100 @@
 /**
  * Summary Generator Service
  *
- * Generates a clean, high-quality meeting summary using a single LLM call.
- * Outputs a well-formatted markdown summary with action items.
+ * Generates post-meeting summaries using two specialized prompts:
+ * 1. Short Overview - A narrative paragraph summary (3-5 sentences)
+ * 2. Key Points - Structured JSON with topics and attributed points
  */
 
 import { logger } from '../../lib/logger';
 import { getLLMService } from '../llm.service';
+import { getTranscriptSegmentsByRecording } from '../../db';
 import type { TranscriptSegmentData } from './transcript-buffer.service';
-import type { PlaybookSnapshot } from './playbook-tracker.service';
-import type { ConversationMetrics } from './conversation-metrics.service';
 
 const log = logger.child({ module: 'summary-generator' });
 
 // Types
 
-export interface CallSummary {
-  /** The complete meeting summary as markdown text */
-  summary: string;
-  /** When the summary was generated */
+export interface KeyPoint {
+  topic: string;
+  points: string[];
+}
+
+export interface PostMeetingSummary {
+  shortOverview: string;
+  keyPoints: KeyPoint[];
   generatedAt: number;
 }
 
-export interface FullCallReport {
-  summary: CallSummary;
-  playbook?: PlaybookSnapshot;
-  metrics?: ConversationMetrics;
-  callDuration: number;
-  segmentCount: number;
+export interface ProbingQA {
+  question: string;
+  answer: string;
+  customAnswer?: string;
 }
+
+export interface MeetingContext {
+  meetingName?: string;
+  meetingDescription?: string;
+  probingQuestions?: ProbingQA[];
+  checklist?: string[];
+}
+
+// System Prompts
+
+const SHORT_OVERVIEW_SYSTEM_PROMPT = `You are an expert meeting summarizer. Given a meeting transcript along
+with its name, description, and checklist, produce a short narrative
+summary of what happened in the meeting.
+
+Rules:
+- Write a single flowing paragraph. No bullet points, no headers,
+  no numbered lists.
+- The summary should read like a brief written by a sharp colleague
+  who sat in on the meeting - it tells you who was there, what the
+  meeting was about, and what the main threads of discussion were.
+- Mention participants by name and what they contributed, but keep it
+  high-level. Do not quote anyone verbatim.
+- Do not editorialize or add opinions. Stick to what actually happened.
+- Aim for 3-5 sentences. Never exceed 120 words.
+- Write in past tense, third person.
+
+Respond ONLY with the summary paragraph - no explanation, no headers,
+no preamble.`;
+
+const KEY_POINTS_SYSTEM_PROMPT = `You are an expert meeting summarizer. Given a meeting transcript along
+with its name, description, and checklist, produce a detailed breakdown
+of the key discussion points from the meeting.
+
+Rules:
+- Identify the major topics or themes that were discussed. Group related
+  points under a clear, short topic heading.
+- Under each topic, write individual points attributed to the person
+  who raised them. Use the format: "Name did/said/raised/confirmed..."
+- Each point should be one concrete sentence capturing what was said,
+  decided, or proposed. No filler, no fluff.
+- Stay factual - report what happened, do not add interpretation or
+  recommendations.
+- Write in past tense, third person.
+- Aim for 2-5 topics, with 2-5 points each. Let the actual content of
+  the meeting dictate the count - do not pad or compress artificially.
+- If the checklist items were addressed in the meeting, naturally weave
+  that into the relevant topic. Do not create a separate "checklist
+  review" section.
+
+Respond ONLY with the JSON object below - no explanation, no markdown
+fences, no preamble.
+
+Output format:
+{
+  "key_points": [
+    {
+      "topic": "Topic Name",
+      "points": [
+        "Person did/said something specific.",
+        "Another person confirmed/raised another point."
+      ]
+    }
+  ]
+}`;
 
 // Summary Generator Service
 
@@ -36,143 +102,148 @@ export class SummaryGeneratorService {
   constructor() {}
 
   /**
-   * Generate a comprehensive meeting summary
+   * Generate both short overview and key points from full transcript
    */
-  async generate(segments: TranscriptSegmentData[]): Promise<CallSummary> {
-    const finalSegments = segments.filter(s => s.isFinal);
+  async generate(
+    recordingId: number,
+    context: MeetingContext
+  ): Promise<PostMeetingSummary> {
+    // Fetch full transcript from database
+    const dbSegments = getTranscriptSegmentsByRecording(recordingId);
 
-    if (finalSegments.length === 0) {
+    if (!dbSegments || dbSegments.length === 0) {
+      log.warn({ recordingId }, 'No transcript segments found for recording');
       return this.emptyResults();
     }
 
-    log.info({ segmentCount: finalSegments.length }, 'Generating meeting summary');
+    log.info({ recordingId, segmentCount: dbSegments.length }, 'Generating post-meeting summaries');
 
-    const transcript = this.formatTranscript(finalSegments);
-    const duration = this.calculateDuration(finalSegments);
-    const llm = getLLMService();
+    const transcript = this.formatTranscript(dbSegments);
+    const userPrompt = this.buildUserPrompt(transcript, context);
 
-    const prompt = `You are an expert meeting note-taker. Generate a comprehensive, well-organized meeting summary from the following transcript.
+    // Generate both summaries in parallel
+    const [shortOverview, keyPoints] = await Promise.all([
+      this.generateShortOverview(userPrompt),
+      this.generateKeyPoints(userPrompt),
+    ]);
 
-MEETING DURATION: ${this.formatDuration(duration)}
-
-TRANSCRIPT:
-${transcript}
-
----
-
-Generate a professional meeting summary in markdown format. The summary should be:
-- Clear and concise
-- Well-organized with proper headings
-- Actionable with specific to-dos
-
-Use this structure:
-
-## Meeting Summary
-
-A 2-3 sentence overview of what this meeting was about and the main outcome.
-
-## Key Discussion Points
-
-- Bullet points of the main topics discussed
-- Include important details and context
-- Note any significant points raised by participants
-
-## Decisions Made
-
-- List any decisions that were reached
-- Include the reasoning if discussed
-- Skip this section if no clear decisions were made
-
-## Action Items
-
-- [ ] Specific task - Owner (if mentioned)
-- [ ] Another task - Owner
-- List all commitments and follow-ups mentioned
-- Include deadlines if specified
-
-## Notes
-
-- Any other important information
-- Open questions or items needing follow-up
-- Skip this section if nothing additional to note
-
----
-
-Important:
-- Write in a professional but conversational tone
-- Be specific - use names, dates, and details from the transcript
-- Focus on what's actionable and important
-- Don't include filler or obvious statements
-- If something wasn't discussed, don't make it up`;
-
-    try {
-      const response = await llm.complete(
-        prompt,
-        'You are a professional meeting summarizer. Generate clear, actionable meeting notes.'
-      );
-
-      if (response.success && response.content) {
-        log.info('Meeting summary generated successfully');
-        return {
-          summary: response.content.trim(),
-          generatedAt: Date.now(),
-        };
-      }
-    } catch (error) {
-      log.error({ error }, 'Summary generation failed');
-    }
-
-    // Fallback: generate a basic summary
-    return this.generateFallbackSummary(finalSegments);
+    return {
+      shortOverview,
+      keyPoints,
+      generatedAt: Date.now(),
+    };
   }
 
   /**
-   * Generate a quick summary (for shorter meetings or quick review)
+   * Generate short overview (narrative paragraph)
    */
-  async generateQuick(segments: TranscriptSegmentData[]): Promise<CallSummary> {
-    const finalSegments = segments.filter(s => s.isFinal);
-
-    if (finalSegments.length === 0) {
-      return this.emptyResults();
-    }
-
-    const transcript = this.formatTranscript(finalSegments);
+  private async generateShortOverview(userPrompt: string): Promise<string> {
     const llm = getLLMService();
 
-    const prompt = `Summarize this meeting in a brief format:
-
-${transcript}
-
-Generate a quick summary with:
-1. One sentence overview
-2. 3-5 key points as bullets
-3. Action items as a checklist
-
-Keep it concise and actionable.`;
-
     try {
-      const response = await llm.complete(
-        prompt,
-        'You are a meeting summarizer. Be brief and actionable.'
-      );
+      const response = await llm.complete(userPrompt, SHORT_OVERVIEW_SYSTEM_PROMPT);
 
       if (response.success && response.content) {
-        return {
-          summary: response.content.trim(),
-          generatedAt: Date.now(),
-        };
+        log.info('Short overview generated successfully');
+        return response.content.trim();
       }
     } catch (error) {
-      log.warn({ error }, 'Quick summary generation failed');
+      log.error({ error }, 'Short overview generation failed');
     }
 
-    return this.emptyResults();
+    return 'Unable to generate meeting summary.';
   }
 
   /**
-   * Format transcript for the LLM
+   * Generate key points (structured JSON)
    */
-  private formatTranscript(segments: TranscriptSegmentData[]): string {
+  private async generateKeyPoints(userPrompt: string): Promise<KeyPoint[]> {
+    const llm = getLLMService();
+
+    try {
+      const response = await llm.complete(userPrompt, KEY_POINTS_SYSTEM_PROMPT);
+
+      if (response.success && response.content) {
+        // Parse the JSON response
+        const parsed = this.parseKeyPointsResponse(response.content);
+        if (parsed) {
+          log.info({ topicCount: parsed.length }, 'Key points generated successfully');
+          return parsed;
+        }
+      }
+    } catch (error) {
+      log.error({ error }, 'Key points generation failed');
+    }
+
+    return [];
+  }
+
+  /**
+   * Parse key points JSON response
+   */
+  private parseKeyPointsResponse(content: string): KeyPoint[] | null {
+    try {
+      // Remove markdown fences if present
+      let cleaned = content.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      }
+
+      const parsed = JSON.parse(cleaned);
+
+      // Handle both { key_points: [...] } and direct array
+      const keyPoints = parsed.key_points || parsed;
+
+      if (Array.isArray(keyPoints)) {
+        return keyPoints.map((kp: { topic: string; points: string[] }) => ({
+          topic: kp.topic || 'Discussion',
+          points: Array.isArray(kp.points) ? kp.points : [],
+        }));
+      }
+    } catch (error) {
+      log.warn({ error, content: content.slice(0, 200) }, 'Failed to parse key points JSON');
+    }
+    return null;
+  }
+
+  /**
+   * Build the user prompt with meeting context
+   */
+  private buildUserPrompt(transcript: string, context: MeetingContext): string {
+    const meetingName = context.meetingName || 'Untitled Meeting';
+    const meetingDescription = context.meetingDescription || 'No description provided';
+
+    // Format probing questions and answers
+    const probingQA = context.probingQuestions?.length
+      ? context.probingQuestions.map((q, i) => {
+          const answer = q.customAnswer
+            ? `${q.answer} (${q.customAnswer})`
+            : q.answer;
+          return `Q${i + 1}: ${q.question}\nA${i + 1}: ${answer}`;
+        }).join('\n\n')
+      : 'No pre-meeting context provided';
+
+    const checklist = context.checklist?.length
+      ? context.checklist.map((item, i) => `${i + 1}. ${item}`).join('\n')
+      : 'No checklist';
+
+    return `Meeting Name: ${meetingName}
+Meeting Description: ${meetingDescription}
+
+Pre-Meeting Context (Q&A):
+${probingQA}
+
+Checklist:
+${checklist}
+
+Transcript:
+${transcript}`;
+  }
+
+  /**
+   * Format transcript segments for the LLM
+   */
+  private formatTranscript(segments: { channel: string; text: string; startTime: number }[]): string {
     return segments
       .map(s => {
         const speaker = s.channel === 'me' ? 'You' : 'Them';
@@ -180,27 +251,6 @@ Keep it concise and actionable.`;
         return `[${time}] ${speaker}: ${s.text}`;
       })
       .join('\n');
-  }
-
-  /**
-   * Calculate meeting duration from segments
-   */
-  private calculateDuration(segments: TranscriptSegmentData[]): number {
-    if (segments.length === 0) return 0;
-    const firstTime = segments[0].startTime;
-    const lastTime = segments[segments.length - 1].endTime;
-    return lastTime - firstTime;
-  }
-
-  /**
-   * Format duration as human readable
-   */
-  private formatDuration(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    if (mins === 0) return `${secs} seconds`;
-    if (secs === 0) return `${mins} minute${mins > 1 ? 's' : ''}`;
-    return `${mins} minute${mins > 1 ? 's' : ''} ${secs} second${secs > 1 ? 's' : ''}`;
   }
 
   /**
@@ -213,38 +263,12 @@ Keep it concise and actionable.`;
   }
 
   /**
-   * Generate fallback summary if LLM fails
-   */
-  private generateFallbackSummary(segments: TranscriptSegmentData[]): CallSummary {
-    const duration = this.calculateDuration(segments);
-    const mySegments = segments.filter(s => s.channel === 'me');
-    const theirSegments = segments.filter(s => s.channel === 'them');
-
-    const summary = `## Meeting Summary
-
-This meeting lasted ${this.formatDuration(duration)} with ${segments.length} exchanges.
-
-## Transcript Overview
-
-- You spoke ${mySegments.length} times
-- They spoke ${theirSegments.length} times
-
-## Notes
-
-The full summary could not be generated. Please review the transcript directly.`;
-
-    return {
-      summary,
-      generatedAt: Date.now(),
-    };
-  }
-
-  /**
    * Return empty results
    */
-  private emptyResults(): CallSummary {
+  private emptyResults(): PostMeetingSummary {
     return {
-      summary: '## Meeting Summary\n\nNo transcript available to summarize.',
+      shortOverview: 'No transcript available to summarize.',
+      keyPoints: [],
       generatedAt: Date.now(),
     };
   }

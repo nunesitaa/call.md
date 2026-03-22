@@ -4,8 +4,17 @@ import { useTranscriptionStore } from '../stores/transcription.store';
 import { useConfigStore } from '../stores/config.store';
 import { useCopilotStore } from '../stores/copilot.store';
 import { useMCPStore } from '../stores/mcp.store';
+import { useMeetingSetupStore } from '../stores/meeting-setup.store';
 import { trpc } from '../api/trpc';
 import { getElectronAPI } from '../api/ipc';
+import type { ProbingQuestion } from '../../shared/types/meeting-setup.types';
+
+interface MeetingSetupData {
+  name: string;
+  description: string;
+  questions: ProbingQuestion[];
+  checklist: string[];
+}
 
 export function useSession() {
   const sessionStore = useSessionStore();
@@ -42,7 +51,7 @@ export function useSession() {
     };
   }, [sessionStore.status, sessionStore.startTime]);
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (meetingSetup?: MeetingSetupData) => {
     const api = getElectronAPI();
     if (!api) {
       sessionStore.setError('Electron API not available');
@@ -102,8 +111,13 @@ export function useSession() {
         throw new Error(result.error || 'Failed to start recording');
       }
 
+      // Start recording with meeting setup data if provided
       const recordingResult = await startRecordingMutation.mutateAsync({
         sessionId: captureSession.sessionId,
+        meetingName: meetingSetup?.name,
+        meetingDescription: meetingSetup?.description,
+        probingQuestions: meetingSetup?.questions,
+        meetingChecklist: meetingSetup?.checklist,
       });
 
       if (transcriptionStore.enabled && (result.micWsConnectionId || result.sysAudioWsConnectionId)) {
