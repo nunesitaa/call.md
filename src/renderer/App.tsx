@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { NewSidebar } from './components/layout/NewSidebar';
 import { AuthView } from './components/auth/AuthView';
 import { TopStatusBar } from './components/recording/TopStatusBar';
@@ -11,7 +11,7 @@ import { useSessionStore } from './stores/session.store';
 import { usePermissions } from './hooks/usePermissions';
 import { useGlobalRecorderEvents } from './hooks/useGlobalRecorderEvents';
 import { useCopilot } from './hooks/useCopilot';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { ErrorToast } from './components/ui/error-toast';
 import { AlertCircle, Loader2 } from 'lucide-react';
@@ -24,10 +24,11 @@ import { useMeetingSetupStore } from './stores/meeting-setup.store';
 import { MCPServersPanel } from './components/settings/MCPServersPanel';
 import { CalendarPanel } from './components/settings/CalendarPanel';
 import { CalendarAuthBanner } from './components/calendar';
-import { MeetingSetupFlow, MeetingInfoPanel } from './components/meeting-setup';
+import { MeetingSetupFlow } from './components/meeting-setup';
 import { StepIndicators } from './components/auth/AuthView';
 import { CalendarSetupView } from './components/auth/CalendarSetupView';
 import { RecordingPreferencesView } from './components/auth/RecordingPreferencesView';
+import { RecordingHeader, MetricsBar, LiveAssistPanel, MeetingAgendaPanel } from './components/recording';
 
 type Tab = 'home' | 'history' | 'settings';
 
@@ -181,13 +182,26 @@ interface RecordingViewProps {
 }
 
 function RecordingView({ onBack }: RecordingViewProps) {
-  const { isCallActive, callSummary } = useCopilotStore();
+  const { isCallActive, callSummary, nudgeHistory } = useCopilotStore();
   const { status } = useSession();
   const meetingSetupStore = useMeetingSetupStore();
 
   const isRecording = status === 'recording';
   const isProcessing = status === 'processing' || status === 'stopping';
   const isIdle = status === 'idle';
+
+  // Get checklist from meeting setup
+  const { checklist } = meetingSetupStore;
+  const hasChecklist = checklist.length > 0;
+
+  // Get insights from nudge history (for Live Assist panel)
+  const insights = nudgeHistory
+    .filter((n) => n.type === 'suggestion' || n.type === 'question')
+    .map((n) => n.message)
+    .slice(-5); // Last 5 insights
+
+  // MCP findings placeholder - will be populated from MCP store
+  const mcpFindings = ''; // TODO: Connect to MCP results
 
   useCopilot();
 
@@ -234,16 +248,15 @@ function RecordingView({ onBack }: RecordingViewProps) {
   // Show processing state while generating summary (only after recording stopped)
   if (isProcessing) {
     return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <TopStatusBar />
+      <div className="flex flex-col h-full overflow-hidden bg-[#f7f7f7]">
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#fff5ec] flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-[#ec5b16] animate-spin" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Generating Call Summary</h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <h2 className="text-lg font-semibold text-black">Generating Call Summary</h2>
+              <p className="text-sm text-[#464646] mt-1">
                 Analyzing your conversation and preparing insights...
               </p>
             </div>
@@ -255,30 +268,36 @@ function RecordingView({ onBack }: RecordingViewProps) {
 
   // If idle, go back to home (user shouldn't see RecordingView when idle)
   if (isIdle) {
-    // This shouldn't happen often since App.tsx checks isActivelyRecording
-    // but if we end up here, just go back
     onBack?.();
     return null;
   }
 
-  // Show recording view with transcription and meeting info
+  // Show recording view with new Figma design
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      {/* Top Status Bar */}
-      <TopStatusBar />
+    <div className="flex flex-col h-full bg-[#f7f7f7]">
+      {/* Header */}
+      <RecordingHeader />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex gap-4 p-4 overflow-hidden">
-        {/* Left Column - Transcription */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 min-h-0">
-            <TranscriptionPanel />
-          </div>
+      {/* Main Container */}
+      <div className="flex-1 bg-white border border-[#efefef] rounded-t-[20px] mx-[10px] p-[20px] flex gap-[30px] overflow-hidden">
+        {/* Left Column - Transcript Section */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <TranscriptionPanel />
         </div>
 
-        {/* Right Column - Meeting Info Panel */}
-        <div className="w-80 flex flex-col shrink-0 overflow-hidden">
-          <MeetingInfoPanel />
+        {/* Right Column - Metrics, Agenda, Live Assist */}
+        <div className="w-[460px] shrink-0 flex flex-col gap-[30px] h-full">
+          {/* Metrics Bar */}
+          <MetricsBar />
+
+          {/* Right Panel with scrollable content */}
+          <div className="flex-1 bg-[#f7f7f7] border border-[#efefef] rounded-[16px] p-[12px] flex flex-col gap-[16px] overflow-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            {/* Meeting Agenda - only show if checklist exists */}
+            {hasChecklist && <MeetingAgendaPanel checklist={checklist} />}
+
+            {/* Live Assist Panel */}
+            <LiveAssistPanel insights={insights} mcpFindings={mcpFindings} />
+          </div>
         </div>
       </div>
     </div>
@@ -385,6 +404,12 @@ export function App() {
 
   // Check if actively recording or processing
   const isActivelyRecording = sessionStatus === 'recording' || sessionStatus === 'processing' || sessionStatus === 'stopping' || sessionStatus === 'starting';
+
+  React.useEffect(() => {
+    if (isActivelyRecording && showMeetingSetup) {
+      setShowMeetingSetup(false);
+    }
+  }, [isActivelyRecording, showMeetingSetup]);
 
   // Handle start recording button from HomeView - show MeetingSetupFlow
   const handleStartRecording = () => {

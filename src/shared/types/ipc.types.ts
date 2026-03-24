@@ -11,6 +11,7 @@ export interface StartRecordingParams {
   accessToken: string;
   apiUrl?: string;
   enableTranscription?: boolean;
+  enableVisualIndex?: boolean;
 }
 
 export interface RecorderEvent {
@@ -19,6 +20,7 @@ export interface RecorderEvent {
     | 'recording:stopped'
     | 'recording:error'
     | 'transcript'
+    | 'visual_index'
     | 'upload:progress'
     | 'upload:complete'
     | 'error';
@@ -31,6 +33,14 @@ export interface TranscriptEvent {
   source: 'mic' | 'system_audio';
   start: number; // epoch seconds from WebSocket
   end: number;   // epoch seconds from WebSocket
+}
+
+export interface VisualIndexEvent {
+  text: string;
+  start: number; // epoch ms from WebSocket
+  end: number;   // epoch ms from WebSocket
+  rtstreamId?: string;
+  rtstreamName?: string;
 }
 
 export interface UploadProgressEvent {
@@ -51,6 +61,8 @@ export interface StartRecordingResult {
   // WebSocket connection IDs for real-time transcription (like Python meeting-copilot)
   micWsConnectionId?: string;
   sysAudioWsConnectionId?: string;
+  // WebSocket connection ID for visual indexing (screen)
+  screenWsConnectionId?: string;
 }
 
 export interface StopRecordingResult {
