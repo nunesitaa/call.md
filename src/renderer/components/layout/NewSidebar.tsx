@@ -12,6 +12,7 @@
 import React from 'react';
 import { LogOut } from 'lucide-react';
 import { useConfigStore } from '../../stores/config.store';
+import { useSessionStore } from '../../stores/session.store';
 import { getElectronAPI } from '../../api/ipc';
 
 type Tab = 'home' | 'history' | 'settings';
@@ -45,23 +46,63 @@ function HomeIcon({ active }: { active: boolean }) {
   );
 }
 
-// Record/History Icon
-function RecordIcon({ active }: { active: boolean }) {
+// Recording Indicator Icon - shown when recording is in progress
+function RecordingIndicatorIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer ring */}
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="#ec5b16"
+        strokeWidth="1.5"
+        fill="rgba(236,91,22,0.15)"
+      />
+      {/* Inner recording dot - pulsing red */}
+      <circle
+        cx="12"
+        cy="12"
+        r="5"
+        fill="#d1242f"
+        className="animate-pulse"
+      />
+    </svg>
+  );
+}
+
+// History Icon (clock with counterclockwise arrow)
+function HistoryIcon({ active }: { active: boolean }) {
   const color = active ? '#ec5b16' : '#464646';
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect
-        x="3"
-        y="6"
-        width="14"
-        height="12"
-        rx="2"
+      {/* Clock circle */}
+      <circle
+        cx="12"
+        cy="13"
+        r="7.5"
         stroke={color}
         strokeWidth="1.5"
         fill={active ? 'rgba(236,91,22,0.15)' : 'none'}
       />
+      {/* Clock hands */}
       <path
-        d="M17 9.5l4-2.5v10l-4-2.5"
+        d="M12 9v4l2.5 1.5"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Counterclockwise arrow */}
+      <path
+        d="M7.5 3.5L4.5 6.5L7.5 9.5"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4.5 6.5H12C14.5 6.5 16.5 7.5 18 9"
         stroke={color}
         strokeWidth="1.5"
         strokeLinecap="round"
@@ -119,6 +160,8 @@ function LogoutIcon() {
 
 export function NewSidebar({ activeTab, onTabChange }: NewSidebarProps) {
   const configStore = useConfigStore();
+  const { status } = useSessionStore();
+  const isRecording = status === 'recording';
 
   const handleLogout = async () => {
     const api = getElectronAPI();
@@ -129,8 +172,12 @@ export function NewSidebar({ activeTab, onTabChange }: NewSidebarProps) {
   };
 
   const tabs: { id: Tab; icon: (active: boolean) => React.ReactNode; label: string }[] = [
-    { id: 'home', icon: (a) => <HomeIcon active={a} />, label: 'Home' },
-    { id: 'history', icon: (a) => <RecordIcon active={a} />, label: 'Recordings' },
+    {
+      id: 'home',
+      icon: (a) => isRecording ? <RecordingIndicatorIcon /> : <HomeIcon active={a} />,
+      label: isRecording ? 'Recording' : 'Home',
+    },
+    { id: 'history', icon: (a) => <HistoryIcon active={a} />, label: 'Past Recordings' },
     { id: 'settings', icon: (a) => <SettingsIcon active={a} />, label: 'Settings' },
   ];
 
