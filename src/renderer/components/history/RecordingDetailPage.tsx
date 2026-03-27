@@ -97,9 +97,9 @@ export function RecordingDetailPage({ recordingId, onBack }: RecordingDetailPage
       />
 
       {/* Main Content */}
-      <div className="flex-1 bg-white border border-[#efefef] rounded-[20px] p-[20px] pb-[40px] flex gap-[30px] overflow-y-auto mb-[10px]">
-        {/* Left Panel - Meeting Insights */}
-        <div className="flex-1 flex flex-col gap-[30px] min-w-0">
+      <div className="flex-1 bg-white border border-[#efefef] rounded-[20px] p-[20px] pb-[40px] flex gap-[30px] overflow-hidden mb-[10px]">
+        {/* Left Panel - Meeting Insights (scrollable) */}
+        <div className="flex-1 flex flex-col gap-[30px] min-w-0 overflow-y-auto pr-[10px]">
           {/* Section Header */}
           <div className="flex items-center gap-[4px]">
             <Sparkles className="h-5 w-5 text-[#ec5b16]" />
@@ -129,8 +129,8 @@ export function RecordingDetailPage({ recordingId, onBack }: RecordingDetailPage
           </div>
         </div>
 
-        {/* Right Panel - Video & Transcript */}
-        <div className="flex-1 flex flex-col gap-[30px] min-w-0">
+        {/* Right Panel - Video & Transcript (sticky) */}
+        <div className="flex-1 flex flex-col gap-[30px] min-w-0 sticky top-0 self-start">
           {/* Video Player */}
           <VideoPlayerSection
             playerUrl={recording.playerUrl}
