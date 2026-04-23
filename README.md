@@ -157,6 +157,10 @@ The app will transcribe in real-time, show live assists, and generate a summary 
    npm install
    ```
 
+   ```bash
+   npm install electron@34 --save-dev
+   ```
+
 3. **Rebuild native modules for Electron:**
    ```bash
    npm run rebuild
